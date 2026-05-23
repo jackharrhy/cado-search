@@ -163,6 +163,8 @@ class CADOClient:
         rate_per_second: float | None = None,
         concurrency: int | None = None,
         user_agent: str | None = None,
+        limiter: RateLimiter | None = None,
+        semaphore: asyncio.Semaphore | None = None,
     ) -> None:
         self._client = httpx.AsyncClient(
             base_url=base_url or settings.base_url,
@@ -176,8 +178,11 @@ class CADOClient:
             follow_redirects=True,
             http2=False,  # the server is old; HTTP/1.1 is safer
         )
-        self._limiter = RateLimiter(rate_per_second or settings.requests_per_second)
-        self._sem = asyncio.Semaphore(concurrency or settings.max_concurrency)
+        # ``limiter`` / ``semaphore`` may be passed in by the scraper so that
+        # multiple ``CADOClient`` instances (each with its own ASP.NET session
+        # cookie) share a single global rate cap.
+        self._limiter = limiter or RateLimiter(rate_per_second or settings.requests_per_second)
+        self._sem = semaphore or asyncio.Semaphore(concurrency or settings.max_concurrency)
         self._last_viewstate: ViewState | None = None
 
     # ---- lifecycle -----------------------------------------------------
