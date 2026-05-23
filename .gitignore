@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Tooling caches
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+
+# Data (scraped HTML + derived DuckDB)
+data/
+*.duckdb
+*.duckdb.wal
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
