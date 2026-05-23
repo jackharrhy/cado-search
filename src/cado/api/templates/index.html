@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="counts">
+  <div class="count-card"><span class="number">{{ counts.companies }}</span><span class="label">Companies</span></div>
+  <div class="count-card"><span class="number">{{ counts.condominiums }}</span><span class="label">Condominiums</span></div>
+  <div class="count-card"><span class="number">{{ counts.cooperatives }}</span><span class="label">Co-operatives</span></div>
+  <div class="count-card"><span class="number">{{ counts.lobbyists }}</span><span class="label">Lobbyists</span></div>
+</section>
+
+<section class="search-section">
+  <h2>Companies / Condominiums / Co-operatives</h2>
+  <form
+    class="search-form"
+    hx-get="/search/companies"
+    hx-trigger="input changed delay:250ms from:input, change from:select, submit"
+    hx-target="#company-results"
+    hx-push-url="false"
+    onsubmit="return false;"
+  >
+    <input type="search" name="q" placeholder="Name or company number (e.g. 25166, 'STITCH')" autofocus>
+    <select name="corp_type">
+      <option value="">All types</option>
+      <option value="Company">Companies</option>
+      <option value="Condominium">Condominiums</option>
+      <option value="Co-operative">Co-operatives</option>
+    </select>
+    <select name="status">
+      <option value="">Any status</option>
+      <option value="Active">Active</option>
+      <option value="Dissolved - Involuntary">Dissolved &mdash; Involuntary</option>
+      <option value="Dissolved - Voluntary">Dissolved &mdash; Voluntary</option>
+      <option value="Dissolved (Prior To June 2004)">Dissolved (pre-2004)</option>
+      <option value="Discontinued">Discontinued</option>
+      <option value="Cancelled">Cancelled</option>
+      <option value="Cancelled - Voluntary">Cancelled &mdash; Voluntary</option>
+      <option value="Previous Name">Previous Name</option>
+    </select>
+  </form>
+  <div id="company-results" hx-get="/search/companies" hx-trigger="load"></div>
+</section>
+
+<section class="search-section">
+  <h2>Lobbyists</h2>
+  <form
+    class="search-form"
+    hx-get="/search/lobbyists"
+    hx-trigger="input changed delay:250ms from:input, submit"
+    hx-target="#lobbyist-results"
+    hx-push-url="false"
+    onsubmit="return false;"
+  >
+    <input type="search" name="q" placeholder="Name, firm, or registration # (e.g. IHL-867-1005)">
+  </form>
+  <div id="lobbyist-results" hx-get="/search/lobbyists" hx-trigger="load"></div>
+</section>
+{% endblock %}

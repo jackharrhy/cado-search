@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}CADO Search{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
+</head>
+<body>
+  <header>
+    <h1><a href="/">CADO Search</a></h1>
+    <p class="tagline">
+      An unofficial, faster mirror of the Government of Newfoundland and Labrador's
+      <a href="https://cado.eservices.gov.nl.ca/" target="_blank" rel="noopener">Companies and Deeds Online</a> registries.
+    </p>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+  <footer>
+    <p>
+      All data is publicly available from <code>cado.eservices.gov.nl.ca</code>.
+      This mirror exists to make it searchable. For authoritative information,
+      consult the upstream registry.
+    </p>
+  </footer>
+</body>
+</html>

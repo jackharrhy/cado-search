@@ -67,6 +67,9 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["PLR2004", "S101"]
+# Depends() / Query() in default args are *the* FastAPI idiom; suppress
+# B008/PLR0915 for the route module.
+"src/cado/api/app.py" = ["B008", "PLR0915"]
 
 [tool.mypy]
 python_version = "3.12"

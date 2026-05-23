@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}{{ c.name }} — CADO Search{% endblock %}
+
+{% block content %}
+<p><a href="/">&larr; Back to search</a></p>
+<article class="detail">
+  <header>
+    <h2>{{ c.name }}</h2>
+    <p class="subtitle">
+      <span class="pill">{{ c.corporation_type }}</span>
+      {% if c.category %}<span class="pill">{{ c.category }}</span>{% endif %}
+      {% if c.status %}<span class="pill status">{{ c.status }}</span>{% endif %}
+    </p>
+  </header>
+
+  <section class="grid">
+    <dl>
+      <dt>Number</dt><dd class="num">{{ c.number }}</dd>
+      <dt>Filing type</dt><dd>{{ c.filing_type or "—" }}</dd>
+      <dt>Business type</dt><dd>{{ c.business_type or "—" }}</dd>
+      <dt>Incorporation jurisdiction</dt><dd>{{ c.incorporation_jurisdiction or "—" }}</dd>
+      <dt>Incorporation date</dt><dd>{{ c.incorporation_date or "—" }}</dd>
+      <dt>Registration date</dt><dd>{{ c.registration_date or "—" }}</dd>
+      <dt>Last annual return</dt><dd>{{ c.last_annual_return or "—" }}</dd>
+      <dt>Min / max directors</dt><dd>{{ c.min_max_directors or "—" }}</dd>
+    </dl>
+    {% if c.additional_info %}
+    <aside class="additional-info">
+      <h3>Additional information</h3>
+      <p>{{ c.additional_info }}</p>
+    </aside>
+    {% endif %}
+  </section>
+
+  <section class="addresses">
+    <div>
+      <h3>Registered office</h3>
+      <address>
+        {{ c.ro_contact or "" }}{% if c.ro_contact %}<br>{% endif %}
+        {{ c.ro_line1 or "" }}{% if c.ro_line1 %}<br>{% endif %}
+        {{ c.ro_line2 or "" }}{% if c.ro_line2 %}<br>{% endif %}
+        {{ c.ro_line3 or "" }}{% if c.ro_line3 %}<br>{% endif %}
+        {{ c.ro_city or "" }}{% if c.ro_city %}, {% endif %}{{ c.ro_province_state or "" }}<br>
+        {{ c.ro_country or "" }}{% if c.ro_country %}<br>{% endif %}
+        {{ c.ro_postal_zip or "" }}
+      </address>
+    </div>
+    <div>
+      <h3>Mailing address {% if c.ma_same_as_registered %}<small>(same as registered)</small>{% endif %}</h3>
+      <address>
+        {{ c.ma_contact or "" }}{% if c.ma_contact %}<br>{% endif %}
+        {{ c.ma_line1 or "" }}{% if c.ma_line1 %}<br>{% endif %}
+        {{ c.ma_line2 or "" }}{% if c.ma_line2 %}<br>{% endif %}
+        {{ c.ma_line3 or "" }}{% if c.ma_line3 %}<br>{% endif %}
+        {{ c.ma_city or "" }}{% if c.ma_city %}, {% endif %}{{ c.ma_province_state or "" }}<br>
+        {{ c.ma_country or "" }}{% if c.ma_country %}<br>{% endif %}
+        {{ c.ma_postal_zip or "" }}
+      </address>
+    </div>
+  </section>
+
+  {% if directors %}
+  <section>
+    <h3>Current directors ({{ directors|length }})</h3>
+    <ul class="director-list">
+      {% for d in directors %}<li>{{ d }}</li>{% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% if previous_names %}
+  <section>
+    <h3>Previous names</h3>
+    <ul>
+      {% for name, eff in previous_names %}
+      <li>{{ name }}{% if eff %} <span class="muted">— effective {{ eff }}</span>{% endif %}</li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% if remarks %}
+  <section>
+    <h3>Historical remarks</h3>
+    <ul>
+      {% for r in remarks %}<li>{{ r }}</li>{% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  <footer class="record-footer">
+    <p>Ingested {{ c.ingested_at }}. Authoritative source:
+      <a href="https://cado.eservices.gov.nl.ca/Company/CompanyNameNumberSearch.aspx" target="_blank" rel="noopener">CADO</a>.</p>
+  </footer>
+</article>
+{% endblock %}

@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}{{ r.registration_number }} — CADO Search{% endblock %}
+
+{% block content %}
+<p><a href="/">&larr; Back to search</a></p>
+<article class="detail">
+  <header>
+    <h2>{{ r.contact_name or r.firm_name or r.registration_number }}</h2>
+    <p class="subtitle">
+      <span class="pill">{{ r.lobbyist_type or "—" }}</span>
+      <span class="pill">{{ r.status or "—" }}</span>
+      <span class="num">{{ r.registration_number }}</span>
+    </p>
+  </header>
+
+  <section class="grid">
+    <dl>
+      <dt>Registration date</dt><dd>{{ r.registration_date or "—" }}</dd>
+      <dt>Effective date</dt><dd>{{ r.effective_date or "—" }}</dd>
+      <dt>Amended date</dt><dd>{{ r.amended_date or "—" }}</dd>
+      <dt>Approval date</dt><dd>{{ r.approval_date or "—" }}</dd>
+    </dl>
+  </section>
+
+  <section class="addresses">
+    <div>
+      <h3>Contact</h3>
+      <p><strong>{{ r.contact_name or "—" }}</strong></p>
+      <address>
+        {{ r.contact_line1 or "" }}<br>
+        {{ r.contact_city or "" }}{% if r.contact_city %}, {% endif %}{{ r.contact_province_state or "" }}<br>
+        {{ r.contact_postal_zip or "" }}
+      </address>
+    </div>
+    <div>
+      <h3>Firm / organisation</h3>
+      <p><strong>{{ r.firm_name or "—" }}</strong></p>
+      <address>
+        {{ r.firm_line1 or "" }}<br>
+        {{ r.firm_city or "" }}{% if r.firm_city %}, {% endif %}{{ r.firm_province_state or "" }}<br>
+        {{ r.firm_postal_zip or "" }}
+      </address>
+    </div>
+  </section>
+
+  {% if r.particulars %}
+  <section>
+    <h3>Particulars</h3>
+    <p>{{ r.particulars }}</p>
+  </section>
+  {% endif %}
+
+  {% if r.organization_description %}
+  <section>
+    <h3>About the organisation</h3>
+    <p style="white-space: pre-wrap;">{{ r.organization_description }}</p>
+  </section>
+  {% endif %}
+
+  {% if r.organization_membership %}
+  <section>
+    <h3>Membership</h3>
+    <p style="white-space: pre-wrap;">{{ r.organization_membership }}</p>
+  </section>
+  {% endif %}
+
+  <footer class="record-footer">
+    <p>Ingested {{ r.ingested_at }}. Authoritative source:
+      <a href="https://cado.eservices.gov.nl.ca/Lobbyist/LobbyistSearch.aspx" target="_blank" rel="noopener">Registry of Lobbyists</a>.</p>
+  </footer>
+</article>
+{% endblock %}
