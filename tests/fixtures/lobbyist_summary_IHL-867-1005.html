@@ -1,0 +1,920 @@
+
+<META http-equiv="Content-Type" content="text/html; charset=windows-1252">
+<form name="Form1" method="post" action="./lobbySummary.aspx" id="Form1">
+<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="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" />
+
+<input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="4618C08D" />
+<input type="hidden" name="__EVENTVALIDATION" id="__EVENTVALIDATION" value="/wEdAAeMuaWooN6+pXTrFv0+qFEAkymJDUqHurIw9W74kanLXEP9TcAvAPMmMVYkKK2S0tt47siSByJ7ZkR8v/810Q6OKaOOp6wLwIrtAxnW1NyCQLP7JcKgMdcXEF729MJ6WHgf+85YE0RDGyabLaCo7NuL0X4uxe7Z3DKBQ98FlxGFNEJHfJLCs4xoJf8do6xAMqI=" />
+	
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<HTML>
+	<HEAD>
+		<title>Lobbyist Registration System</title> 
+		<!-- Do we really need this stuff? -->
+		
+		<meta content="JavaScript" name="vs_defaultClientScript">
+		<meta content="http://schemas.microsoft.com/intellisense/ie5" name="vs_targetSchema">
+		<LINK href="/Styles.css" type=text/css rel=stylesheet>
+		<link href="/TemplateCSS-JS/gnlscreen.css" rel="stylesheet" type="text/css" media="screen" >
+		<script>
+			//var childWindow = false;
+			
+			var alreadySubmitted = false;
+			
+			function popUpWindow(sTarget, bModal, bCenter, iWidth, iHeight, bScroll){
+				// Browser Detection
+				var IE4plus = (document.all) ? true : false;
+				
+				//Window size is max 640x480
+				//if (iWidth > 640 || iWidth < 0) iWidth = 640;
+				//if (iHeight > 480 || iHeight < 0) iHeight = 480;
+			
+				if (IE4plus && bModal)
+				{
+					// Window properties
+					var sEdge = 'Raised' //Sunken || Raised
+					
+					var sFeatures='dialogHeight: ' + iHeight + 'px; dialogWidth: ' + iWidth + 'px; dialogTop: ' + iTop + 'px; dialogLeft: ' + iLeft + 'px; edge: ' + sEdge + '; center: ' + bCenter + '; help: no; resizable: yes; status: no; scroll: yes;';
+					
+					window.showModalDialog(sTarget, '', sFeatures);
+				}
+				else
+				{
+					// Center window dimensions for non-IE4+
+					if (bCenter)
+					{
+						var iLeft = (screen.width - iWidth) / 2;
+						var iTop = (screen.height - iHeight) / 2;
+					}
+					else
+					{
+						var iLeft = '';
+						var iTop = '';
+					}
+					
+					scrollBars = ',scrollbars=yes';
+					
+					if (bScroll == false){
+						scrollBars = '';
+					}
+													
+					msg=window.open(sTarget,'popUpWindow','width=' + iWidth + ',height=' + iHeight + ',left=' + iLeft + ',top=' + iTop + scrollBars + ',status=no');
+					
+					if (!popUpWindow.opener) popUpWindow.opener = self;
+				}
+			}
+			
+					
+			function resetForm(){
+				document.forms[0].reset();
+			}	
+			
+			function fnTrapKD(btn){
+				if (event.keyCode == 13){
+					event.returnValue=false;
+					event.cancel = true;
+					btn.click();
+				}
+			}
+	
+			document.onkeydown = function(){
+				if ((event.srcElement.type != "textarea") && (event.srcElement.type != "image")) {
+					if(window.event.keyCode==13) return false
+				}
+			}
+
+		
+			function disableEnterKey(){ 
+		   		if (window.event.keyCode == 13){ 
+		   		return false;
+		   		}
+			} 
+			
+			
+			function setFocusUC(controlName)
+			{
+				//controlName = controlName + ':txtTextBox';
+				var control = document.getElementById(controlName);
+				
+				if( control != null )
+				{
+					control.focus();
+					return true;
+				}
+				else
+				{
+					return false;
+				}
+			}
+			
+			function setFocus(controlName)
+			{
+				var control = document.getElementById(controlName);
+				
+				if( control != null )
+				{
+					control.focus();
+					return true;
+				}
+				else
+				{
+					return false;
+				}
+			}
+			
+						
+			function submitFormFirstTime(){
+				var returnSubmit = alreadySubmitted;
+				alreadySubmitted = true;
+				
+				return !returnSubmit;
+				
+			}
+			
+			function MM_swapImgRestore() { //v3.0
+  var i,x,a=document.MM_sr; for(i=0;a&&i<a.length&&(x=a[i])&&x.oSrc;i++) x.src=x.oSrc;
+}
+
+function MM_swapImage() { //v3.0
+  var i,j=0,x,a=MM_swapImage.arguments; document.MM_sr=new Array; for(i=0;i<(a.length-2);i+=3)
+   if ((x=MM_findObj(a[i]))!=null){document.MM_sr[j++]=x; if(!x.oSrc) x.oSrc=x.src; x.src=a[i+2];}
+}
+
+function MM_findObj(n, d) { //v4.01
+  var p,i,x;  if(!d) d=document; if((p=n.indexOf("?"))>0&&parent.frames.length) {
+    d=parent.frames[n.substring(p+1)].document; n=n.substring(0,p);}
+  if(!(x=d[n])&&d.all) x=d.all[n]; for (i=0;!x&&i<d.forms.length;i++) x=d.forms[i][n];
+  for(i=0;!x&&d.layers&&i<d.layers.length;i++) x=MM_findObj(n,d.layers[i].document);
+  if(!x && d.getElementById) x=d.getElementById(n); return x;
+}
+		
+		</script>
+		<!--<body>-->
+		<!--<table cellSpacing="0" cellPadding="0" width="740" border="0">
+			<tr>
+				<td><div>
+						<img src="/Images/gsHeader_new.gif" alt="" usemap="#gsHeader_new" style="BORDER-TOP-STYLE:none; BORDER-RIGHT-STYLE:none; BORDER-LEFT-STYLE:none; BORDER-BOTTOM-STYLE:none" >
+					</div>
+					<div>
+						<map id="gsHeader_new" name="gsHeader_new">
+							<area shape="RECT" coords="5,32,124,47" href="javascript:popUpWindow('/P_Disclaimer.html', false, true, 640, 480);" title="" >
+							<area shape="RECT" nohref="nohref" alt="" coords="0,0,0,0">
+						</map>
+					</div>
+				</td>
+			</tr>-->
+		<!--<table border="0" width="600" cellspacing="0" cellpadding="0">
+			<tr>
+				<td bgcolor="black" height="1" colspan="2">
+					<img border="0" src="./Images/placeh1.gif" width="1" height="1"></td>
+			</tr>
+			<tr>
+				<td><a href="http://www.gs.gov.nl.ca/"> <img border="0" src="/Images/gsname.gif" width="454" height="46" alt="Digital Government and Service NL"></a></td>
+				<td rowspan="2">
+					<img src="/Images/logo.gif" width="146" height="69"></td>
+			</tr>
+			<tr>
+				<td>
+					<table border="0" width="100%" cellspacing="0" cellpadding="0">
+						<tr>
+							<td bgcolor="#591928" align="center"><a href="http://www.gov.nl.ca/" class="headerlink" style="FONT-WEIGHT: bold; FONT-SIZE: 12px; COLOR: #ffffff; FONT-FAMILY: Arial; TEXT-DECORATION: none">Government 
+									Home</a></td>
+							<td width="1" bgcolor="#ffffff">
+								<img border="0" src="/Images/placeh1.gif" width="1" height="1"></td>
+							<td bgcolor="#591928" align="center">
+								<a class="headerlink" style="FONT-WEIGHT: bold; FONT-SIZE: 12px; COLOR: #ffffff; FONT-FAMILY: Arial; TEXT-DECORATION: none"
+									href="http://search.gov.nl.ca/texis/search/">Search</a></td>
+							<td width="1" bgcolor="#ffffff">
+								<img border="0" src="/Images/placeh1.gif" width="1" height="1"></td>
+							<td bgcolor="#591928" align="center">
+								<a class="headerlink" style="FONT-WEIGHT: bold; FONT-SIZE: 12px; COLOR: #ffffff; FONT-FAMILY: Arial; TEXT-DECORATION: none"
+									href="http://www.gs.gov.nl.ca/cca/cr/locations.stm">Contact Us</a></td>
+							<td width="1" bgcolor="#ffffff">
+								<img border="0" src="/Images/placeh1.gif" width="1" height="1"></td>
+							<td bgcolor="#591928" align="center">
+								<a class="headerlink" style="FONT-WEIGHT: bold; FONT-SIZE: 12px; COLOR: #ffffff; FONT-FAMILY: Arial; TEXT-DECORATION: none"
+									href="https://cado.eservices.gov.nl.ca/Disclaimer.aspx">Copyright/Disclaimer</a></td>
+							<td background="/Images/br_fade.jpg" width="40">&nbsp;</td>
+						</tr>
+					</table>
+				</td>
+			</tr>
+			<tr>
+				<td bgcolor="black" height="1" colspan="2">
+					<img border="0" src="/Images/placeh1.gif" width="1" height="1"></td>
+			</tr>
+			<tr>
+				<td align="left" colSpan="6">
+					<table cellSpacing="0" cellPadding="0" width="100%" border="0">
+						<TBODY>
+							<tr>
+								<td align="left"><a id="Header_lbtSearch" href="javascript:__doPostBack(&#39;Header$lbtSearch&#39;,&#39;&#39;)">Search</a><span id="Header_lblDividerSummary"> | </span><a id="Header_lbtLogin" href="javascript:__doPostBack(&#39;Header$lbtLogin&#39;,&#39;&#39;)">Login</a><a id="Header_lbtLogout" href="javascript:__doPostBack(&#39;Header$lbtLogout&#39;,&#39;&#39;)">Logout</a></td>
+								<td align="right"><span id="Header_lblCurrentDate">May 23, 2026</span></td>
+				</td>
+			</tr>
+		</table>-->
+	</HEAD>
+	<body>
+		<div id="gnltop">
+			<div id="gnltopnav">
+                <font style="FONT-SIZE: 16pt;FONT-FAMILY: Arial;top: 35px;position: absolute;left: 240px;color: white;">Companies and Deeds Online - CADO</font>
+				<div id="gnllogo"><span class="hidden">Government of Newfoundland and Labrador</span></div>
+
+				<ul>
+                    
+					<li>
+						
+					<li>
+						
+					<LI>
+						&nbsp;</LI>
+				</ul>
+			</div>
+		</div>
+		<div id="gnlhead">
+			<div id="gnldeptitle"><h2></h2>
+			</div>
+		</div>
+		<DIV id="gnlusers">
+			<div id="Header_pnlNavigation">
+	
+				<UL>
+					<LI>
+						<a id="Header_lnkMain" href="/Main.aspx">Main</a>
+					<LI>
+						<a id="Header_lnkCompanies" href="/Company/CompanyMain.aspx">Companies</a>
+					<LI>
+                             <!-- Tony Nov 30, 2022  Bug 572   Kathy wants the 2 links below to display.  They were commented out so I just removed the comments  -->
+						<a id="Header_lnkCondos" href="/Company/CondoMain.aspx">Condominiums</a>
+					<LI>
+						<a id="Header_lnkCoops" href="/Company/CoopMain.aspx">Co-operatives</a>
+					
+					<LI>
+						<a id="Header_lnkDeeds" href="/Deeds/DeedsMain.aspx">Deeds</a>
+					<LI>
+						<a id="Header_lnkMechanics" href="/MechanicsLiens/MechanicsMain.aspx">Mechanics Liens</a>
+					<LI class="lastitem">
+						<a id="Header_lnkLobbyists" href="/Lobbyist/Menu.aspx">Lobbyists</a></LI></UL>
+			
+</div>
+		</DIV> <!--				
+	<table cellSpacing="0" cellPadding="0" border="0" width="100%"><TR><TD 
+align="right"></TD></TR></TABLE></BODY></HTML>--></body>
+</HTML>
+<br>
+	<table id="tblMainBody" bordercolor="#003c74" cellspacing="0" cellpadding="0" width="740" align="center" bgcolor="#ffffff" border="1">
+	<tr class="row">
+		<td valign="top">
+				<table cellSpacing="0" cellPadding="3" width="100%" align="center" border="0">
+					<tr class="bluebar">
+						<td class="bluebartext" colSpan="2">Lobby Summary</td>
+					</tr>
+					<tr>
+						<td colSpan="2">
+							<table cellSpacing="0" cellPadding="0" width="100%" align="center" bgColor="#ffffff">
+								<TR>
+									<TD colSpan="2">&nbsp;</TD>
+								</TR>
+								<tr class="row">
+									<td colSpan="2">
+										<table id="tblMA" width="100%">
+			<tr class="row">
+				<td valign="top" width="240"><b>Particulars:</b></td>
+				<td width="75%"><span id="lblParticulars">Advocating to remove red tape that exists in regulation, policy and programs.</span></td>
+			</tr>
+			<tr id="trRegistrationNumber" class="ROW">
+				<td width="240"><b>Registration Number:</b></td>
+				<td width="75%"><span id="lblRegistrationNumber">IHL-867-1005</span></td>
+			</tr>
+			<tr id="trRegistrationDate" class="ROW">
+				<td width="240"><b><B>Lobby Activity Date:</B></b></td>
+				<td colspan="3"><span id="lblRegistrationDate">2026-05-07</span></td>
+			</tr>
+			<tr id="trStatus" class="ROW">
+				<td width="240"><b>Status:</b></td>
+				<td width="75%"><span id="lblstatus">Approved</span></td>
+			</tr>
+			<tr id="trEffectiveDate" class="ROW">
+				<td width="240"><b>Effective Date:</b></td>
+				<td align="left" width="75%" height="17"><span id="lblEffectiveDate">2026-06-16</span></td>
+			</tr>
+			<tr id="trAmendedDate" class="ROW">
+				<td width="240"><b>Amended Date:</b></td>
+				<td align="left" width="75%" height="17"><span id="lblAmendedDate">2026-05-07</span></td>
+			</tr>
+			<tr id="trApprovalDate" class="ROW">
+				<td width="240" height="17"><b>Approval Date:</b></td>
+				<td align="left" width="80" height="17"><span id="lblApprovalDate">2026-05-11</span></td>
+			</tr>
+			<tr class="ROW">
+				<td width="240"><b>Intent to Lobby MHA:</b></td>
+				<td width="75%"><span disabled="disabled"><input id="chkLobbyMHADuring" type="checkbox" name="chkLobbyMHADuring" disabled="disabled" /><label for="chkLobbyMHADuring">During Return Period</label></span><span disabled="disabled"><input id="chkLobbyMHANext" type="checkbox" name="chkLobbyMHANext" checked="checked" disabled="disabled" /><label for="chkLobbyMHANext">Next Following 6 Month Period</label></span></td>
+			</tr>
+		</table>
+		
+									</td>
+								</tr>
+							</table>
+						</td>
+					</tr>
+				</table>
+			</td>
+	</tr>
+</table>
+
+	<br>
+	<table id="tblContact" bordercolor="#003c74" cellspacing="0" cellpadding="0" width="740" align="center" bgcolor="#ffffff" border="1">
+	<tr class="row">
+		<td valign="top">
+				<table height="122" cellSpacing="0" cellPadding="3" width="100%" align="center" border="0">
+					<tr class="bluebar">
+						<td class="bluebartext" colSpan="2">Contact Information</td>
+					</tr>
+					<tr>
+						<td colSpan="2">
+							<table cellSpacing="0" cellPadding="0" width="100%" align="center" bgColor="#ffffff">
+								<TR>
+									<TD colSpan="2">&nbsp;</TD>
+								</TR>
+								<tr class="row">
+									<td colSpan="2">
+										<table id="Table1" width="730">
+			<tr class="ROW">
+				<td width="30%"><b>Name:</b></td>
+				<td width="70%"><span id="lblContactName">Rhonda Tulk-Lane</span></td>
+			</tr>
+			<tr class="ROW">
+				<td width="20%"><b>Business Address:</b></td>
+				<td width="20%" colspan="3"><span id="lblContactAddressCI">113 Salmonier Line</span></td>
+			</tr>
+			<tr class="ROW">
+				<td width="20%"><b>City:</b></td>
+				<td width="80%" colspan="3"><span id="lblContactCityCI">Holyrood</span></td>
+			</tr>
+			<tr id="trContactProvince" class="ROW">
+				<td width="20%"><b>Canadian Province/US State:</b></td>
+				<td width="80"><span id="lblContactProvince">Newfoundland & Labrador </span></td>
+			</tr>
+			<tr>
+			</tr>
+			<tr id="trContactPostal" class="ROW">
+				<td width="20%"><b>Postal/Zip Code:</b></td>
+				<td width="80"><span id="lblContactPostal">A0A 2R0</span></td>
+			</tr>
+		</table>
+		
+									</td>
+								</tr>
+							</table>
+						</td>
+					</tr>
+				</table>
+			</td>
+	</tr>
+</table>
+
+	<br>
+	<table id="tblFirmDetails" bordercolor="#003c74" cellspacing="0" cellpadding="0" width="740" align="center" bgcolor="#ffffff" border="1">
+	<tr class="row">
+		<td valign="top">
+					<table height="122" cellSpacing="0" cellPadding="3" width="100%" align="center" border="0">
+						<TBODY>
+							<tr class="bluebar">
+								<td class="bluebartext" colSpan="2">Firm/Organization Information</td>
+							</tr>
+							<tr>
+								<td colSpan="2">
+									<table cellSpacing="0" cellPadding="0" width="100%" align="center" bgColor="#ffffff">
+										<TBODY>
+											<TR>
+												<TD colSpan="2">&nbsp;</TD>
+											</TR>
+											<tr class="row">
+												<td colSpan="2">
+													<table id="Table4" width="730">
+			<tr class="row">
+				<td width="30%"><b>Firm/Organization Name:</b></td>
+				<td width="100%" colspan="3"><span id="lblFirmName">Atlantic Chamber of Commerce</span></td>
+			</tr>
+			<tr class="ROW">
+				<td width="30%"><b>Business Address:</b></td>
+				<td width="100%" colspan="3"><span id="lblAddressF">113 Salmonier Line</span></td>
+			</tr>
+			<tr class="ROW">
+				<td width="30%"><b>City:</b></td>
+				<td width="100%" colspan="30"><span id="lblCityF">Holyrood</span></td>
+			</tr>
+			<tr id="trProvinceStateF" class="ROW">
+				<td width="30%"><b>Canadian Province/US State:</b></td>
+				<td width="100%"><span id="lblProvinceStateF">Newfoundland & Labrador </span></td>
+			</tr>
+			<tr id="trPostalZipCodeF" class="ROW">
+				<td width="30%"><b>Postal/Zip Code:</b></td>
+				<td width="100%"><span id="lblPostalZipCodeF">A0A 2R0</span></td>
+			</tr>
+		</table>
+		
+												</td>
+											</tr>
+										</TBODY></table>
+								</td>
+							</tr>
+						</TBODY></table>
+				</td>
+	</tr>
+</table>
+
+	<br>
+	<table id="tblOrgDet" bordercolor="#003c74" cellspacing="0" cellpadding="0" width="740" align="center" bgcolor="#ffffff" border="1">
+	<tr id="trOrgDesc" class="row">
+		<td valign="middle">
+				<table cellSpacing="0" cellPadding="3" width="100%" align="center" border="0">
+					<tr class="bluebar">
+						<td class="bluebartext" colSpan="2">Organization Details</td>
+					</tr>
+					<tr>
+						<td colSpan="2">
+							<table cellSpacing="0" cellPadding="0" width="100%" align="center" bgColor="#ffffff">
+								<TR>
+									<TD colSpan="2">&nbsp;</TD>
+								</TR>
+								<tr class="row">
+									<td colSpan="2">
+										<table id="OrgTable" width="100%">
+			<tr class="row">
+				<td colspan="2"><b>Description of Organization</b><br>
+												</td>
+			</tr>
+			<tr class="ROW">
+				<td></td>
+				<td><span id="lblOrgDesc">The Atlantic Chamber of Commerce (ACC) is the largest accredited business association in Atlantic Canada, meeting the highest national standards of excellence in leadership, governance and operations. It is dedicated to enhancing the business landscape. A member-driven organization consisting of chambers of commerce, boards of trade, and corporate partners. Through a network of 90 chambers and boards of trade across the four Atlantic provinces, the ACC represents over 16,000+ businesses of all sizes and sectors.
+
+
+The ACC represents four provincial divisions:
+
+Newfoundland and Labrador Division
+Nova Scotia Division
+Prince Edward Island Division
+New Brunswick Division 
+ </span></td>
+			</tr>
+			<tr class="row">
+				<td colspan="2"><b>Description of Organization's Membership</b><br>
+												</td>
+			</tr>
+			<tr class="ROW">
+				<td></td>
+				<td><span id="lblOrgMembership">Membership - 94 chambers and boards of trade in Atlantic Canada. 21 in NL
+
+Directors List:
+1.Des Whelan
+2.Margo Soucy
+3. Sam Carburry
+4.Colin Krulicki
+5.Bill Dowe
+6.Neil Rogers
+7.Claire Ryan
+8.Dawn Binns
+9. Ben Ladner
+10. Trevor McLeod
+11. Angela MacDonald
+12. Noel Eustace
+13. Tom Bateman</span></td>
+			</tr>
+		</table>
+		
+									</td>
+								</tr>
+							</table>
+						</td>
+					</tr>
+				</table>
+			</td>
+	</tr>
+</table>
+
+	<br>
+	
+	<br>
+	<p></p>
+	<p><div id="pnlFunding">
+	
+			<table id="tblFunding" bordercolor="#003c74" cellspacing="0" cellpadding="0" width="740" align="center" bgcolor="#ffffff" border="1">
+		<tr class="row">
+			<TD valign="top"><A name="funding"></A>
+						<TABLE height="0" cellSpacing="0" cellPadding="3" width="100%" align="center" border="0">
+							<TR class="bluebar">
+								<TD class="bluebartext" colSpan="4">Funding Sources</TD>
+							</TR>
+							<TR class="row">
+								<TD vAlign="bottom" align="left" colSpan="4">
+									<TABLE cellSpacing="0" cellPadding="0" width="100%">
+										<TR>
+											<TD align="left">Records Found:
+												<span id="lblRecordsFoundF">0</span></TD>
+											<TD align="right">&nbsp;</TD>
+										</TR>
+									</TABLE>
+								</TD>
+							</TR>
+							</TABLE>
+					</TD>
+		</tr>
+	</table>
+	
+		
+</div></p>
+	<p><div id="pnlSubjectMatter">
+	
+			<table id="tblSubjectMatter" bordercolor="#003c74" cellspacing="0" cellpadding="0" width="740" align="center" bgcolor="#ffffff" border="1">
+		<tr class="row">
+			<TD valign="middle">
+						<TABLE height="0" cellSpacing="0" cellPadding="3" width="100%" align="center" border="0">
+							<TR class="bluebar">
+								<TD class="bluebartext" colSpan="5">Subject Matter</TD>
+							</TR>
+							<TR class="row">
+								<TD vAlign="bottom" align="left">Records Found:
+									<span id="lblRecordsFoundSM">9</span></TD>
+								<TD>&nbsp;</TD>
+								<TD vAlign="bottom" align="right">&nbsp;</TD>
+							</TR>
+							
+									<TR class="tablehead">
+										<td width="50%">Subject Matter</td>
+										<td width="25%">Has Lobbied During<br>
+											Return Period</td>
+										<td width="25%">Expects to Lobby During<br>
+											Next Following 6 Month Period</td>
+									</TR>
+								
+									<TR class="row">
+										<td width="50%">
+											<span id="rptSubjectMatter__ctl1_lblSubjectMatter">Economic Development</span></td>
+										<td width="25%">
+											<span id="rptSubjectMatter__ctl1_lblHas">No</span></td>
+										<td width="25%">
+											<span id="rptSubjectMatter__ctl1_lblExpects">Yes</span></td>
+									</TR>
+								
+									<TR class="rowalt">
+										<td width="50%">
+											<span id="rptSubjectMatter__ctl2_lblSubjectMatter">Education and Training</span></td>
+										<td width="25%">
+											<span id="rptSubjectMatter__ctl2_lblHas">No</span></td>
+										<td width="25%">
+											<span id="rptSubjectMatter__ctl2_lblExpects">Yes</span></td>
+									</TR>
+								
+									<TR class="row">
+										<td width="50%">
+											<span id="rptSubjectMatter__ctl3_lblSubjectMatter">Energy</span></td>
+										<td width="25%">
+											<span id="rptSubjectMatter__ctl3_lblHas">No</span></td>
+										<td width="25%">
+											<span id="rptSubjectMatter__ctl3_lblExpects">Yes</span></td>
+									</TR>
+								
+									<TR class="rowalt">
+										<td width="50%">
+											<span id="rptSubjectMatter__ctl4_lblSubjectMatter">Government Procurement</span></td>
+										<td width="25%">
+											<span id="rptSubjectMatter__ctl4_lblHas">No</span></td>
+										<td width="25%">
+											<span id="rptSubjectMatter__ctl4_lblExpects">Yes</span></td>
+									</TR>
+								
+									<TR class="row">
+										<td width="50%">
+											<span id="rptSubjectMatter__ctl5_lblSubjectMatter">Labour and Employment</span></td>
+										<td width="25%">
+											<span id="rptSubjectMatter__ctl5_lblHas">No</span></td>
+										<td width="25%">
+											<span id="rptSubjectMatter__ctl5_lblExpects">Yes</span></td>
+									</TR>
+								
+									<TR class="rowalt">
+										<td width="50%">
+											<span id="rptSubjectMatter__ctl6_lblSubjectMatter">Small Business</span></td>
+										<td width="25%">
+											<span id="rptSubjectMatter__ctl6_lblHas">No</span></td>
+										<td width="25%">
+											<span id="rptSubjectMatter__ctl6_lblExpects">Yes</span></td>
+									</TR>
+								
+									<TR class="row">
+										<td width="50%">
+											<span id="rptSubjectMatter__ctl7_lblSubjectMatter">Taxation</span></td>
+										<td width="25%">
+											<span id="rptSubjectMatter__ctl7_lblHas">No</span></td>
+										<td width="25%">
+											<span id="rptSubjectMatter__ctl7_lblExpects">Yes</span></td>
+									</TR>
+								
+									<TR class="rowalt">
+										<td width="50%">
+											<span id="rptSubjectMatter__ctl8_lblSubjectMatter">Trade</span></td>
+										<td width="25%">
+											<span id="rptSubjectMatter__ctl8_lblHas">No</span></td>
+										<td width="25%">
+											<span id="rptSubjectMatter__ctl8_lblExpects">Yes</span></td>
+									</TR>
+								
+									<TR class="row">
+										<td width="50%">
+											<span id="rptSubjectMatter__ctl9_lblSubjectMatter">Transportation</span></td>
+										<td width="25%">
+											<span id="rptSubjectMatter__ctl9_lblHas">No</span></td>
+										<td width="25%">
+											<span id="rptSubjectMatter__ctl9_lblExpects">Yes</span></td>
+									</TR>
+								</TABLE>
+					</TD>
+		</tr>
+	</table>
+	
+		
+</div></p>
+	<p><div id="pnlTargets">
+	
+			<table id="tblTargets" bordercolor="#003c74" cellspacing="0" cellpadding="0" width="740" align="center" bgcolor="#ffffff" border="1" style="word-break: break-word">
+		<tr class="row">
+			<TD valign="middle">
+						<TABLE height="0" cellSpacing="0" cellPadding="3" width="100%" align="center" border="0">
+							<TR class="bluebar">
+								<TD class="bluebartext" colSpan="5">Lobby Targets</TD>
+							</TR>
+							<TR class="row">
+								<TD vAlign="bottom" align="left">Records Found:
+									<span id="lblRecordsFoundT">12</span></TD>
+								<TD>&nbsp;</TD>
+								<TD vAlign="bottom" align="right">&nbsp;</TD>
+							</TR>
+							
+									<TR class="tablehead">
+										<td width="50%">Targets</td>
+										<td width="25%">Has Lobbied During<br>
+											Return Period</td>
+										<td width="25%">Expects to Lobby During<br>
+											Next Following 6 Month Period</td>
+									</TR>
+								
+									<TR class="row">
+										<td width="50%">
+											<span id="rptTargets__ctl1_lblTargets">Business</span></td>
+										<td width="25%">
+											<span id="rptTargets__ctl1_lblTarHas">No</span></td>
+										<td width="25%">
+											<span id="rptTargets__ctl1_lblTarExpects">Yes</span></td>
+									</TR>
+								
+									<TR class="rowalt">
+										<td width="50%">
+											<span id="rptTargets__ctl2_lblTargets">Education</span></td>
+										<td width="25%">
+											<span id="rptTargets__ctl2_lblTarHas">No</span></td>
+										<td width="25%">
+											<span id="rptTargets__ctl2_lblTarExpects">Yes</span></td>
+									</TR>
+								
+									<TR class="row">
+										<td width="50%">
+											<span id="rptTargets__ctl3_lblTargets">Environment And Climate Change</span></td>
+										<td width="25%">
+											<span id="rptTargets__ctl3_lblTarHas">No</span></td>
+										<td width="25%">
+											<span id="rptTargets__ctl3_lblTarExpects">Yes</span></td>
+									</TR>
+								
+									<TR class="rowalt">
+										<td width="50%">
+											<span id="rptTargets__ctl4_lblTargets">Executive Council</span></td>
+										<td width="25%">
+											<span id="rptTargets__ctl4_lblTarHas">No</span></td>
+										<td width="25%">
+											<span id="rptTargets__ctl4_lblTarExpects">Yes</span></td>
+									</TR>
+								
+									<TR class="row">
+										<td width="50%">
+											<span id="rptTargets__ctl5_lblTargets">Finance</span></td>
+										<td width="25%">
+											<span id="rptTargets__ctl5_lblTarHas">No</span></td>
+										<td width="25%">
+											<span id="rptTargets__ctl5_lblTarExpects">Yes</span></td>
+									</TR>
+								
+									<TR class="rowalt">
+										<td width="50%">
+											<span id="rptTargets__ctl6_lblTargets">Government Modernization And Service Delivery</span></td>
+										<td width="25%">
+											<span id="rptTargets__ctl6_lblTarHas">No</span></td>
+										<td width="25%">
+											<span id="rptTargets__ctl6_lblTarExpects">Yes</span></td>
+									</TR>
+								
+									<TR class="row">
+										<td width="50%">
+											<span id="rptTargets__ctl7_lblTargets">Government Purchasing Agency</span></td>
+										<td width="25%">
+											<span id="rptTargets__ctl7_lblTarHas">No</span></td>
+										<td width="25%">
+											<span id="rptTargets__ctl7_lblTarExpects">Yes</span></td>
+									</TR>
+								
+									<TR class="rowalt">
+										<td width="50%">
+											<span id="rptTargets__ctl8_lblTargets">Human Resources, Labour and Employment</span></td>
+										<td width="25%">
+											<span id="rptTargets__ctl8_lblTarHas">No</span></td>
+										<td width="25%">
+											<span id="rptTargets__ctl8_lblTarExpects">Yes</span></td>
+									</TR>
+								
+									<TR class="row">
+										<td width="50%">
+											<span id="rptTargets__ctl9_lblTargets">Innovation, Trade and Rural Development</span></td>
+										<td width="25%">
+											<span id="rptTargets__ctl9_lblTarHas">No</span></td>
+										<td width="25%">
+											<span id="rptTargets__ctl9_lblTarExpects">Yes</span></td>
+									</TR>
+								
+									<TR class="rowalt">
+										<td width="50%">
+											<span id="rptTargets__ctl10_lblTargets">Intergovernmental Affairs Secretariat</span></td>
+										<td width="25%">
+											<span id="rptTargets__ctl10_lblTarHas">No</span></td>
+										<td width="25%">
+											<span id="rptTargets__ctl10_lblTarExpects">Yes</span></td>
+									</TR>
+								
+									<TR class="row">
+										<td width="50%">
+											<span id="rptTargets__ctl11_lblTargets">Natural Resources</span></td>
+										<td width="25%">
+											<span id="rptTargets__ctl11_lblTarHas">No</span></td>
+										<td width="25%">
+											<span id="rptTargets__ctl11_lblTarExpects">Yes</span></td>
+									</TR>
+								
+									<TR class="rowalt">
+										<td width="50%">
+											<span id="rptTargets__ctl12_lblTargets">Office of the Premier</span></td>
+										<td width="25%">
+											<span id="rptTargets__ctl12_lblTarHas">No</span></td>
+										<td width="25%">
+											<span id="rptTargets__ctl12_lblTarExpects">Yes</span></td>
+									</TR>
+								</TABLE>
+					</TD>
+		</tr>
+	</table>
+	
+		
+</div></p>
+	<p><div id="pnlCommTech">
+	
+			<table id="tblCommTech" bordercolor="#003c74" cellspacing="0" cellpadding="0" width="740" align="center" bgcolor="#ffffff" border="1">
+		<tr class="row">
+			<TD valign="middle">
+						<TABLE height="0" cellSpacing="0" cellPadding="3" width="100%" align="center" border="0">
+							<TR class="bluebar">
+								<TD class="bluebartext" colSpan="5">Communication Techniques</TD>
+							</TR>
+							<TR class="row">
+								<TD vAlign="bottom" align="left">Records Found:
+									<span id="lblRecordsFoundCT">3</span></TD>
+								<TD>&nbsp;</TD>
+								<TD vAlign="bottom" align="right">&nbsp;</TD>
+							</TR>
+							
+									<TR class="tablehead">
+										<td width="50%">Communication Techniques</td>
+										<td width="25%">Has Lobbied During<br>
+											Return Period</td>
+										<td width="25%">Expects to Lobby During<br>
+											Next Following 6 Month Period</td>
+									</TR>
+								
+									<TR class="row">
+										<td width="50%">
+											<span id="rptCommTech__ctl1_lblCommTech">Arranging One or More Meetings</span></td>
+										<td width="25%">
+											<span id="rptCommTech__ctl1_lblCommHas">No</span></td>
+										<td width="25%">
+											<span id="rptCommTech__ctl1_lblCommExpects">Yes</span></td>
+									</TR>
+								
+									<TR class="rowalt">
+										<td width="50%">
+											<span id="rptCommTech__ctl2_lblCommTech">Meetings</span></td>
+										<td width="25%">
+											<span id="rptCommTech__ctl2_lblCommHas">No</span></td>
+										<td width="25%">
+											<span id="rptCommTech__ctl2_lblCommExpects">Yes</span></td>
+									</TR>
+								
+									<TR class="row">
+										<td width="50%">
+											<span id="rptCommTech__ctl3_lblCommTech">Written Communication (Hard Copy or Electronic)</span></td>
+										<td width="25%">
+											<span id="rptCommTech__ctl3_lblCommHas">No</span></td>
+										<td width="25%">
+											<span id="rptCommTech__ctl3_lblCommExpects">Yes</span></td>
+									</TR>
+								</TABLE>
+					</TD>
+		</tr>
+	</table>
+	
+		
+</div></p>
+	<p><div id="pnlInHouseLobbyists">
+	
+			<table id="tblInHouseLobbyists" bordercolor="#003c74" cellspacing="0" cellpadding="0" width="740" align="center" bgcolor="#ffffff" border="1">
+		<tr class="row">
+			<TD valign="middle">
+						<TABLE height="0" cellSpacing="0" cellPadding="5" width="100%" align="center" border="0">
+							<TR class="bluebar">
+								<TD class="bluebartext" colSpan="7">In-House Lobbyists</TD>
+							</TR>
+							<TR class="row">
+								<TD vAlign="bottom" align="left" colSpan="7">
+									<TABLE height="19" cellSpacing="0" cellPadding="0" width="720">
+										<TR>
+											<TD align="left">Records Found:
+												<span id="lblRecordsFoundIHL">1</span></TD>
+											<TD vAlign="bottom" align="right"></TD>
+										</TR>
+									</TABLE>
+								</TD>
+							</TR>
+							
+									<TR class="tablehead">
+										<td>Name</td>
+										<td>Effective Date</td>
+										<td>Inactive Date</td>
+									</TR>
+								
+									<TR class="row">
+										<td>
+											<span id="rptInHouseLobbyists__ctl1_lblInHouseLobbyist">Tulk-Lane, Rhonda</span>
+										<td>
+											<span id="rptInHouseLobbyists__ctl1_lblinHouseEffective">2026-05-07</span></td>
+										<td>
+											<span id="rptInHouseLobbyists__ctl1_lblinHouseInactive"></span></td>
+									</TR>
+								</TABLE>
+					</TD>
+		</tr>
+	</table>
+	
+		
+</div></p>
+	<table width="740" align="center">
+		<tr>
+            <td align="right"><input type="image" name="btnReturn" id="btnReturn" src="../Images/b_return.gif" border="0" /></td>
+		</tr>
+	</table>
+	<span id="lblErrorMessage"></span></form>
+
+<!-- START OF FOOTER -->
+<br>
+<div id="gnlfoot">
+
+	<ul id="gnlfootlinks">
+	<!--<li><a href="/Disclaimer.aspx">Disclaimer/Privacy</a></li>-->
+    
+     <li><A href="javascript:popUpWindow('/P_Disclaimer.aspx', false, true, 740, 460);">Disclaimer/Privacy</a></li>
+	<li><a href="/Lobbyist/RegistrationSummary.aspx">Home</a></li>
+	<!--<li><a href="http://www.gs.gov.nl.ca/cca/cr/locations.stm">Contact</a></li>-->
+	<!--<li><a href="http://www.gs.gov.nl.ca/department/contact.html#locations">Contact</a></li>-->
+	<li><a href="https://www.servicenl.gov.nl.ca/department/registries_contact.html" target="_blank" rel="noopener noreferrer">Contact</a></li>
+	<!--<li><a href="http://www.gov.nl.ca">Government Home </a></li>-->
+          <!-- Tony Nov 10, 2022 Added return link  Bug 548 -->
+    <li><a href="##" id="ShowReturn" onClick="history.go(-1); return false;">Return</a></li>
+	</ul>
+
+	<div id="gnlcopyright">
+		This page and all contents are copyright, Government of Newfoundland and Labrador, all rights reserved.
+	</div>
+
+</div><!--for gnlfoot-->
+<!-- Tony Nov 7, 2022 Bug 548  Added javascript below to hide return link   -->
+<script>
+    var x = document.getElementById("ShowReturn");
+    var url = window.location.pathname;
+    var filename = url.substring(url.lastIndexOf('/') + 1);
+    if (filename == 'Disclaimer.aspx') {
+        x.style.display = "block"
+    }
+    else {
+        x.style.display = "none";
+    }
+  </script>
+
+</body>
+
+</html>
+</TD></TR></TBODY></TABLE></TD></TR></TBODY></TABLE></TD></TR></TBODY></TABLE></TD></TR></TBODY></TABLE></FORM>

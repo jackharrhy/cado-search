@@ -1,0 +1,625 @@
+<form name="Form1" method="post" action="./LobbyistSearch.aspx" id="Form1">
+<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="/wEPDwULLTEzNDQ3NTMyMjgPZBYCZg9kFiICAQ9kFgRmD2QWBAIBDw8WAh4HVmlzaWJsZWhkZAIFDw8WAh8AaGRkAgIPZBYCAgEPZBYOAgEPDxYCHgtOYXZpZ2F0ZVVybAUKL01haW4uYXNweGRkAgMPDxYCHwEFGS9Db21wYW55L0NvbXBhbnlNYWluLmFzcHhkZAIFDw8WAh8BBRcvQ29tcGFueS9Db25kb01haW4uYXNweGRkAgcPDxYCHwEFFi9Db21wYW55L0Nvb3BNYWluLmFzcHhkZAIJDw8WAh8BBRUvRGVlZHMvRGVlZHNNYWluLmFzcHhkZAILDw8WAh8BBSIvTWVjaGFuaWNzTGllbnMvTWVjaGFuaWNzTWFpbi5hc3B4ZGQCDQ8PFgIfAQUTL0xvYmJ5aXN0L01lbnUuYXNweGRkAgMPDxYCHwBoZGQCBw8PZBYCHglvbmtleWRvd24FIGZuVHJhcEtEKGRvY3VtZW50LmFsbC5idG5TZWFyY2gpZAIJDw9kFgIfAgUgZm5UcmFwS0QoZG9jdW1lbnQuYWxsLmJ0blNlYXJjaClkAgsPD2QWAh8CBSBmblRyYXBLRChkb2N1bWVudC5hbGwuYnRuU2VhcmNoKWQCDQ8PZBYCHwIFIGZuVHJhcEtEKGRvY3VtZW50LmFsbC5idG5TZWFyY2gpZAIPDxYCHwBoZAIRDxYCHwBoFgICAg9kFgJmDxBkZBYAZAITDxYCHwBoZAIVDxYCHwBoFgICAg9kFgJmDxBkZBYAZAInDxAPZBYCHwIFIGZuVHJhcEtEKGRvY3VtZW50LmFsbC5idG5TZWFyY2gpZGRkAikPEA9kFgIfAgUgZm5UcmFwS0QoZG9jdW1lbnQuYWxsLmJ0blNlYXJjaClkZGQCKw8QD2QWAh8CBSBmblRyYXBLRChkb2N1bWVudC5hbGwuYnRuU2VhcmNoKWRkZAItDxAPZBYCHwIFIGZuVHJhcEtEKGRvY3VtZW50LmFsbC5idG5TZWFyY2gpZGRkAi8PEA9kFgIfAgUgZm5UcmFwS0QoZG9jdW1lbnQuYWxsLmJ0blNlYXJjaClkZGQCMQ8QD2QWAh8CBSBmblRyYXBLRChkb2N1bWVudC5hbGwuYnRuU2VhcmNoKWRkZAI5Dw8WAh8AZ2QWAgIBD2QWAmYPZBYCZg9kFgYC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MDUtMDFkZAIGD2QWAmYPFQEKVGVybWluYXRlZGQCCQ9kFgZmDxYCHwBnFggCAQ8PFgIfBQUBMWRkAgMPDxYCHwUFAjcyZGQCBQ8PFgIfBQUCNzNkZAIHDw8WAh8FBQI3M2RkAgEPFgIfAGhkAgMPZBYCAgEPDxYCHwEFR2phdmFzY3JpcHQ6cG9wVXBXaW5kb3coJ1BfTG9iYnlpc3RTZWFyY2guYXNweCcsIGZhbHNlLCB0cnVlLCA4MDAsIDYwMCk7ZGQYAQUeX19Db250cm9sc1JlcXVpcmVQb3N0QmFja0tleV9fFg8FDGJ0blNlYXJjaEFsbAUPYnRuUGlja0Zyb21EYXRlBQ1idG5QaWNrVG9EYXRlBQxyYkNvbnN1bHRhbnQFDHJiQ29uc3VsdGFudAUJcmJJbkhvdXNlBQlyYkluSG91c2UFCnJiVHlwZUJvdGgFCHJiQWN0aXZlBQhyYkFjdGl2ZQUKcmJJbmFjdGl2ZQUKcmJJbmFjdGl2ZQUMcmJTdGF0dXNCb3RoBQlidG5TZWFyY2gFDmJ0blJlc2V0QnV0dG9uhB2JKqGf12UZRKNJFCR21BE7mUKVOROmsEpXn51BuWk=" />
+
+<script>location.href='#Results';</script>
+<input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="3136ACF4" />
+<input type="hidden" name="__EVENTVALIDATION" id="__EVENTVALIDATION" value="/wEdAB8YFxufgMYyEV3duEyltBp6LcGYLuVGSGJB9i6Y0ZSDDetZBdiRon5d1qE03oo5TvNM2vz4PH8f7Z818+HGDJ7H0VCwbYMH/mCPGh5urcL4FgG/C30u3Fos/EHTQwAdb2JD3GLC+epxx/SzcOhCXldJhN/yxg/tNNFwV4i8VrBv9IUUqP5IUuXTp0l+rErauxY6GX39ewFFXMEeUx5+6kZrUjmvajFSVEtwPlbuyNe3Moi6PaVpJyDoUPo7t7wiQQu8KLd2eEl5czNsOnPsqH4VibIIlM0jCyZSaRsmsHYltUel0MMYW4TuxXnwCPi/AuSITIH/XD3vyB7oV9m36UkBcJ6DIVNQq0qDzQ6Q38nSSFxbKvMd8ZJ9LfyK+zrMXYqO1N1XNFmfsMXJasjxX85jMIBZDeaCLCpucrmnvMqN5Q4b5lPnDYPMHnDmjG30JiWiB7fiDQ6dvuGyIuDj7LQpuWKmHvoMke3fJRQ92a4fhIm594V/TL2cGLPhF8190TICUb7P5GmLH8tfDPr0jPf/fE+2jdn4ETPBcI9mrAn1nvVFHRZYClUh0uxiwXh5HZzGpDHPqRWHKc5Hy6BZndHTnzqt3XwSkb3Qyf3qyAmrDFUGVq9D9jmQ57xq7hyd4j+ujlDBtC1wbggQPTgAe8FKd5Hlw3uLDESNQYDbNkGvWIuk1XYDOAeGZMbxcVVzmYw=" />
+	
+<!DOCTYPE html>
+<!--[if lt IE 7 ]><html class="ie ie6" lang="en"> <![endif]-->  
+<!--[if IE 7 ]><![endif]--> <!--[if IE 8 ]><html class="ie ie8" lang="en"> <![endif]-->  
+<!--[if (gte IE 9)|!(IE)]><!-->
+	<html lang="en">
+<!--<![endif]-->
+	<HEAD id="Head1">
+		<title>CADO - Companies and Deeds Online</title> 
+		
+			<!-- Basic Page Needs
+  ================================================== -->
+			<!--MPM Fix for IE11 compat prob -->
+			
+			<meta charset="utf-8">			
+			
+			
+			<meta content="JavaScript" name="vs_defaultClientScript">
+			<meta content="http://schemas.microsoft.com/intellisense/ie5" name="vs_targetSchema">
+			<!--PI - January 5, 2022:  Added the LINK for Styles.css back in to fix the presentations issues we had.-->
+            <LINK href="/Styles.css" type=text/css rel=stylesheet>
+			<link href="/TemplateCSS-JS/gnlscreen.css" rel="stylesheet" type="text/css" media="screen" >
+            <link href="/TemplateCSS-JS/gnlprint.css" rel="stylesheet" type="text/css" media="print" >
+			<script>
+			//var childWindow = false;
+			
+			var alreadySubmitted = false;
+			
+			function popUpWindow(sTarget, bModal, bCenter, iWidth, iHeight, bScroll){
+				// Browser Detection
+				var IE4plus = (document.all) ? true : false;
+				
+				//Window size is max 640x480
+				//if (iWidth > 640 || iWidth < 0) iWidth = 640;
+				//if (iHeight > 480 || iHeight < 0) iHeight = 480;
+			
+				if (IE4plus && bModal)
+				{
+					// Window properties
+					var sEdge = 'Raised' //Sunken || Raised
+					
+					var sFeatures='dialogHeight: ' + iHeight + 'px; dialogWidth: ' + iWidth + 'px; dialogTop: ' + iTop + 'px; dialogLeft: ' + iLeft + 'px; edge: ' + sEdge + '; center: ' + bCenter + '; help: no; resizable: yes; status: no; scroll: yes;';
+					
+					window.showModalDialog(sTarget, '', sFeatures);
+				}
+				else
+				{
+					// Center window dimensions for non-IE4+
+					if (bCenter)
+					{
+						var iLeft = (screen.width - iWidth) / 2;
+						var iTop = (screen.height - iHeight) / 2;
+					}
+					else
+					{
+						var iLeft = '';
+						var iTop = '';
+					}
+					
+					scrollBars = ',scrollbars=yes';
+					
+					if (bScroll == false){
+						scrollBars = '';
+					}
+													
+					msg=window.open(sTarget,'popUpWindow','width=' + iWidth + ',height=' + iHeight + ',left=' + iLeft + ',top=' + iTop + scrollBars + ',status=no');
+					
+					if (!popUpWindow.opener) popUpWindow.opener = self;
+				}
+			}
+			
+			function LibertyWindow(sTarget, bModal, bCenter, iWidth, iHeight, bScroll, fit = true) {
+
+                if (fit) { 
+                    sTarget = sTarget + '#view=FitH';
+                }
+
+                // Browser Detection
+				var IE4plus = (document.all) ? true : false;
+
+                if (iWidth != '820') {
+                    //Window size is max 640x480
+                    if (iWidth > 780 || iWidth < 0) iWidth = 780;
+                    if (iHeight > 550 || iHeight < 0) iHeight = 550;
+                }
+
+				if (IE4plus && bModal)
+				{
+					// Window properties
+					var sEdge = 'Raised' //Sunken || Raised
+					
+					var sFeatures='dialogHeight: ' + iHeight + 'px; dialogWidth: ' + iWidth + 'px; dialogTop: ' + iTop + 'px; dialogLeft: ' + iLeft + 'px; edge: ' + sEdge + '; center: ' + bCenter + '; help: no; resizable: yes; status: no; scroll: yes;';
+					
+					window.showModalDialog(sTarget, '', sFeatures);
+				}
+				else
+				{
+					// Center window dimensions for non-IE4+
+					if (bCenter)
+					{
+						var iLeft = (screen.width - iWidth) / 2;
+						var iTop = (screen.height - iHeight) / 2;
+					}
+					else
+					{
+						var iLeft = '';
+						var iTop = '';
+					}
+					
+					scrollBars = ',scrollbars=yes';
+					
+					if (bScroll == false){
+						scrollBars = '';
+					}
+													
+					msg=window.open(sTarget,'popUpWindow','width=' + iWidth + ',height=' + iHeight + ',left=' + iLeft + ',top=' + iTop + scrollBars + ',status=no' + ',resizable=yes');
+					
+					if (!LibertyWindow.opener) LibertyWindow.opener = self;
+				}
+			}
+			
+			function resetForm(){
+				document.forms[0].reset();
+			}	
+			
+			function fnTrapKD(btn){
+				if (event.keyCode == 13){
+					event.returnValue=false;
+					event.cancel = true;
+					btn.click();
+				}
+			}
+	
+			document.onkeydown = function(){
+				if ((event.srcElement.type != "textarea") && (event.srcElement.type != "image")) {
+					if(window.event.keyCode==13) return false
+				}
+			}
+
+		
+			function disableEnterKey(){ 
+		   		if (window.event.keyCode == 13){ 
+		   		return false;
+		   		}
+			} 
+			
+			
+			function setFocusUC(controlName)
+			{
+				var control = document.getElementById(controlName);
+				
+				if( control != null )
+				{
+					control.focus();
+				}
+			}
+			
+			function setFocus(controlName)
+			{
+				var control = document.getElementById(controlName);
+				
+				if( control != null )
+				{
+					control.focus();
+					return true;
+				}
+				else
+				{
+					return false;
+				}
+			}
+			
+			function removeAC(cNum){
+				aCompanies = document.forms[0].amalgamatedCompanies.value.split(",");
+				document.forms[0].amalgamatedCompanies.value = "";
+		
+				for (com in aCompanies){
+					if (aCompanies[com] != ("z" + cNum)){
+						if (document.forms[0].amalgamatedCompanies.value == ""){
+							document.forms[0].amalgamatedCompanies.value = aCompanies[com];
+						} else {
+							document.forms[0].amalgamatedCompanies.value += "," + aCompanies[com];
+						}
+					}
+				}
+		
+				document.forms[0].submit();
+			}
+			
+			function submitFormFirstTime(){
+				var returnSubmit = alreadySubmitted;
+				alreadySubmitted = true;
+				
+				return !returnSubmit;
+				
+			}
+			
+			function waitCursor()
+			{
+				document.body.style.cursor = "wait";
+			}
+			
+			function defaultCursor()
+			{
+				document.body.style.cursor = "default";
+			}
+		
+			</script>
+			<script language="javascript">
+<!--
+
+function HandleOnClose() {
+   if (event.clientY < 0 || event.clientX < 0) {
+	if (event.clientY < -90) {
+	  if (event.clientY > -115)
+	  {
+       
+       //var answer = confirm("");
+       
+        //event.cancelBubble = !answer;
+        event.returnValue = "Are you sure you want to close this window? \nIf so, please ensure you logout correctly before closing the window. \nFailing to logout correctly could result in your account getting  locked for 30 minutes";
+       
+       
+      
+      }
+     }
+   }
+}
+
+//-->
+			</script>
+		<!--<BODY onbeforeunload="HandleOnClose()">-->
+	</HEAD>
+	<body>
+		<div id="gnltop">
+			<div id="gnltopnav">
+                <font style="FONT-SIZE: 16pt;FONT-FAMILY: Arial;top: 35px;position: absolute;left: 240px;color: white;">Companies and Deeds Online - CADO</font>
+				<div id="gnllogo"><span class="hidden">Government of Newfoundland and Labrador</span></div>
+				<ul id="Header_ulTopNavigation">
+					<li>
+						
+					<li>
+						
+					<LI>
+						&nbsp;</LI>
+				</ul>
+				
+			</div>
+		</div>
+		<div id="gnlhead">
+			<div id="gnldeptitle"><h2></h2>
+			</div>
+		</div>
+		<DIV id="gnlusers">
+			<div id="Header_pnlNavigation">
+	
+				<UL id="Header_ulNavigation">
+					<LI>
+						<a id="Header_lnkMain" href="/Main.aspx">Main</a>
+					<LI>
+						<a id="Header_lnkCompanies" href="/Company/CompanyMain.aspx">Companies</a>
+					<LI>
+						<a id="Header_lnkCondos" href="/Company/CondoMain.aspx">Condominiums</a>
+					<LI>
+						<a id="Header_lnkCoops" href="/Company/CoopMain.aspx">Co-operatives</a>
+					<LI>
+						<a id="Header_lnkDeeds" href="/Deeds/DeedsMain.aspx">Deeds</a>
+					<LI>
+						<a id="Header_lnkMechanics" href="/MechanicsLiens/MechanicsMain.aspx">Mechanics Liens</a>
+					<LI class="lastitem">
+						<a id="Header_lnkLobbyists" href="/Lobbyist/Menu.aspx">Lobbyists</a></LI></UL>				
+			
+</div>
+		</DIV>
+		<br>
+	</body>
+</HTML>
+<br>
+	
+	<table borderColor="#003c74" cellSpacing="0" cellPadding="0" width="740" align="center"
+		bgColor="#ffffff" border="1">
+		<tr class="row">
+			<td vAlign="middle">
+				<table cellSpacing="0" cellPadding="3" width="100%" align="center" border="0">
+					<tr class="bluebar">
+						<td class="bluebartext" colSpan="2">Registry of Lobbyists Search</td>
+					</tr>
+					<tr>
+						<td colSpan="2">
+							<table cellSpacing="0" cellPadding="0" width="100%" align="center" bgColor="#ffffff">
+								<tr class="row">
+									<td colSpan="2">
+										<table width="100%">
+											<TBODY>
+												<tr class="row">
+													<td colSpan="5"><font color="#003c74" size="3"><b>Full Search</b></font></td>
+												</tr>
+												<tr class="ROW">
+													<td width="107" colSpan="2"><b>Search All Registrations:</b></td>
+													<td vAlign="middle" colSpan="3"><input type="image" name="btnSearchAll" id="btnSearchAll" src="..\Images/b_search.gif" border="0" /></td>
+												</tr>
+									</td>
+								</tr>
+								<tr class="row">
+									<td align="center" colSpan="5">
+										<hr width="680">
+									</td>
+								</tr>
+								<tr class="row">
+									<td width="480" colSpan="4"><font color="#003c74" size="3"><b>Detailed Search</b></font></td>
+									<td align="right"><A href="javascript:popUpWindow('P_SearchHints.aspx',false, true,800,655)">Search, 
+											Print and Navigation Hints</A></td>
+								</tr>
+								<tr class="row">
+									<td colSpan="5"><b>1.&nbsp;&nbsp;Lobbyist Name:</b></td>
+								</tr>
+								<tr class="ROW">
+									<td width="20">&nbsp;</td>
+									<td width="82">Last Name:</td>
+									<td colSpan="3"><input name="txtLastName" type="text" maxlength="30" id="txtLastName" onkeydown="fnTrapKD(document.all.btnSearch)" /></td>
+								</tr>
+								<tr class="row">
+									<td width="20">&nbsp;</td>
+									<td width="82">First Name:</td>
+									<td colSpan="3"><input name="txtFirstName" type="text" maxlength="30" id="txtFirstName" onkeydown="fnTrapKD(document.all.btnSearch)" /></td>
+								</tr>
+								<tr class="row">
+									<td colSpan="5"><b>2.&nbsp;&nbsp;Client:</b></td>
+								</tr>
+								<tr class="ROW">
+									<td width="20">&nbsp;</td>
+									<td width="82">Client Name:</td>
+									<td colSpan="3"><input name="txtClientName" type="text" maxlength="200" size="90" id="txtClientName" onkeydown="fnTrapKD(document.all.btnSearch)" /></td>
+								</tr>
+								<tr class="row">
+									<td colSpan="5"><b>3.&nbsp;&nbsp;Company/Organization:</b></td>
+								</tr>
+								<tr class="ROW">
+									<td width="20">&nbsp;</td>
+									<td width="82">Company/Organization Name:</td>
+									<td colSpan="3"><input name="txtCompanyName" type="text" maxlength="200" size="90" id="txtCompanyName" onkeydown="fnTrapKD(document.all.btnSearch)" /></td>
+								</tr>
+								
+								
+								
+								
+								<tr class="ROW">
+									<td colSpan="5"><b>4.&nbsp;&nbsp;Lobby Activity Date Range:</b></td>
+								</tr>
+								<tr class="row">
+									<td width="20">&nbsp;</td>
+									<td width="82">From Date:</td>
+									<td width="225">
+										<table cellSpacing="2" cellPadding="0">
+											<tr>
+												<td><input name="txtFromDate" type="text" maxlength="8" id="txtFromDate" />&nbsp;<font size="-1">(yyyymmdd)</font></td>
+												<!--<td class="DateLabel" align="center" width="80"><span id="lblFromDate"></span>&nbsp;</td>-->
+												<!--<td><A onmouseover="MM_swapImage('btnPickFromDate','','../images/btn_calendar_over.gif',1)"
+														onmouseout="MM_swapImgRestore()" href="javascript:;"><input type="image" name="btnPickFromDate" id="btnPickFromDate" src="../images/btn_calendar.gif" border="0" /></A>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a id="lbtClearFromDate" href="javascript:__doPostBack(&#39;lbtClearFromDate&#39;,&#39;&#39;)">Clear Date</a></td>-->
+											</tr>
+										</table>
+									</td>
+									<td width="55">To Date:</td>
+									<td width="235">
+										<table cellSpacing="2" cellPadding="0">
+											<tr>
+												<td><input name="txtToDate" type="text" maxlength="8" id="txtToDate" />&nbsp;<font size="-1">(yyyymmdd)</font></td>
+												<!--<td class="DateLabel" align="center" width="80"><span id="lblToDate"></span>&nbsp;</td>-->
+												<!--<td><A onmouseover="MM_swapImage('btnPickToDate','','../images/btn_calendar_over.gif',1)"
+														onmouseout="MM_swapImgRestore()" href="javascript:;"><input type="image" name="btnPickToDate" id="btnPickToDate" src="../images/btn_calendar.gif" border="0" /></A>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a id="lbtClearToDate" href="javascript:__doPostBack(&#39;lbtClearToDate&#39;,&#39;&#39;)">Clear Date</a></td>-->
+											</tr>
+										</table>
+									</td>
+								</tr>
+								<tr class="row">
+									<td align="center" colSpan="5">
+										<hr width="680">
+									</td>
+								</tr>
+							</table>
+							<table width="100%">
+								<TBODY>
+									<tr class="row">
+										<td colSpan="5"><b>Filter Results By:</b></td>
+									</tr>
+									<tr class="row">
+										<td width="20">&nbsp;</td>
+										<td width="200">Lobbyist Type:</td>
+										<td width="170"><span onCommand="rbConsultant_CheckedChanged" onkeydown="fnTrapKD(document.all.btnSearch)"><input id="rbConsultant" type="radio" name="rdoLobbyistType" value="rbConsultant" /></span>&nbsp;Consultant</td>
+										<td width="140"><span onCommand="rbInHouse_CheckedChanged" onkeydown="fnTrapKD(document.all.btnSearch)"><input id="rbInHouse" type="radio" name="rdoLobbyistType" value="rbInHouse" /></span>In-House</td>
+										<td width="210"><span onCommand="rbTypeBoth_CheckedChanged" onkeydown="fnTrapKD(document.all.btnSearch)"><input id="rbTypeBoth" type="radio" name="rdoLobbyistType" value="rbTypeBoth" checked="checked" /></span>Both</td>
+									</tr>
+									<tr class="row">
+										<td width="20">&nbsp;</td>
+										<td width="200">Status:</td>
+										<td width="170"><span onCommand="rbActive_CheckedChanged" onkeydown="fnTrapKD(document.all.btnSearch)"><input id="rbActive" type="radio" name="rdoStatus" value="rbActive" /></span>&nbsp;Active</td>
+										<td width="140"><span onCommand="rbInactive_CheckedChanged" onkeydown="fnTrapKD(document.all.btnSearch)"><input id="rbInactive" type="radio" name="rdoStatus" value="rbInactive" /></span>Inactive</td>
+										<td width="210"><span onCommand="rbStatusBoth_CheckedChanged" onkeydown="fnTrapKD(document.all.btnSearch)"><input id="rbStatusBoth" type="radio" name="rdoStatus" value="rbStatusBoth" checked="checked" /></span>Both</td>
+									</tr>
+									<tr>
+										<td>&nbsp;</td>
+									</tr>
+									<tr>
+										<td align="right" colSpan="5"><input type="image" name="btnSearch" id="btnSearch" src="../Images/b_search.gif" border="0" />&nbsp;&nbsp;<input type="image" name="btnResetButton" id="btnResetButton" src="../Images/b_reset.gif" border="0" /></td>
+									</tr>
+                                    <!--  Tony Nov 08, 2022   Bug 534  Commented out the button below.  Not used and not required
+							<TR>
+								<TD colSpan="7" align="right">
+									<P></P>
+									
+									<P></P>
+								</TD>
+							</TR>
+                            -->
+								</TBODY></table>
+						</td>
+					</tr>
+				</table>
+			</td>
+		</tr>
+	</table>
+	</TD></TR></TBODY></TABLE>
+	<p><div id="pnlSearchResults">
+	
+			<table id="tblSearchResults" bordercolor="#003c74" cellspacing="0" cellpadding="0" width="740" align="center" bgcolor="#ffffff" border="1">
+		<tr class="row">
+			<TD valign="middle" colspan="2"><A name="Results"></A><A name="LobbyDetails"></A>
+						<TABLE cellSpacing="0" cellPadding="3" width="100%" align="center" border="0">
+							<tr id="trSearchResultsHeader" class="bluebar">
+				<TD class="bluebartext" colspan="7">Search Results</TD>
+				<TD align="right"></TD>
+			</tr>
+			
+							<tr id="trSearchResultsRecords" class="row">
+				<TD valign="bottom" colspan="2" align="left">Records Found:
+									<span id="lblRecordsFound">727</span></TD>
+				<TD valign="bottom" colspan="5" align="right">Viewing Records:
+									<span id="lblViewingRecords">721-727</span></TD>
+			</tr>
+			
+							<tr id="trSearchResultsColumns" class="tablehead">
+				<TD>Registration
+									<BR>
+									#</TD>
+				<TD>Lobbyist
+									<BR>
+									Name</TD>
+				<TD>Lobbyist
+									<BR>
+									Type</TD>
+				<TD>Client</TD>
+				<TD width="85">Company/<BR>
+									Organization</TD>
+				<TD width="50">Lobby&nbsp;<BR>
+									Activity Date</TD>
+				<TD><BR>
+									Status</TD>
+			</tr>
+			
+							
+									<tr id="rptSearchResults__ctl1_trSearchResultsItemTemplate" class="row">
+				<td valign="top" width="12%">
+											<a id="rptSearchResults__ctl1_lbtRegNum" href="javascript:__doPostBack(&#39;rptSearchResults$_ctl1$lbtRegNum&#39;,&#39;&#39;)">IHL-112-86</a></td>
+				<td width="20%">
+											<span id="rptSearchResults__ctl1_lblLobbyistName">Bradley George<br>Stéphane Robichaud<br>Judy Hindy<br>Dan Kelly<br>Leanne Hachey<br>Judith  Andrew<br></span></td>
+				<td valign="TOP" width="10%">In-House</td>
+				<td valign="TOP" width="16%"></td>
+				<td valign="TOP" width="18%">Canadian Federation of Independent Business</td>
+				<td valign="TOP" width="14%"><span id="rptSearchResults__ctl1_lblEffectiveDate">2005-01-01</span></td>
+				<td valign="TOP" width="10%">Completed</td>
+			</tr>
+			
+								
+									<tr id="rptSearchResults__ctl2_trSearchResultsItemTemplate" class="rowalt">
+				<td valign="top" width="12%">
+											<a id="rptSearchResults__ctl2_lbtRegNum" href="javascript:__doPostBack(&#39;rptSearchResults$_ctl2$lbtRegNum&#39;,&#39;&#39;)">IHL-110-89</a></td>
+				<td valign="TOP" width="20%">
+											<span id="rptSearchResults__ctl2_lblLobbyistName">Paul Barnes<br></span></td>
+				<td valign="TOP" width="10%">In-House</td>
+				<td valign="TOP" width="16%"></td>
+				<td valign="TOP" width="18%">Canadian Association of Petroleum Producers</td>
+				<td valign="top" width="10%">
+											<span id="rptSearchResults__ctl2_lblEffectiveDate">2005-01-01</span></td>
+				<td valign="TOP" width="10%">Completed</td>
+			</tr>
+			
+								
+									<tr id="rptSearchResults__ctl3_trSearchResultsItemTemplate" class="row">
+				<td valign="top" width="12%">
+											<a id="rptSearchResults__ctl3_lbtRegNum" href="javascript:__doPostBack(&#39;rptSearchResults$_ctl3$lbtRegNum&#39;,&#39;&#39;)">IHL-110-105</a></td>
+				<td width="20%">
+											<span id="rptSearchResults__ctl3_lblLobbyistName">Paul Barnes<br>Brian Maynard<br>Aurora Reid<br>Pamela Benson<br></span></td>
+				<td valign="TOP" width="10%">In-House</td>
+				<td valign="TOP" width="16%"></td>
+				<td valign="TOP" width="18%">Canadian Association of Petroleum Producers</td>
+				<td valign="TOP" width="14%"><span id="rptSearchResults__ctl3_lblEffectiveDate">2005-01-01</span></td>
+				<td valign="TOP" width="10%">Completed</td>
+			</tr>
+			
+								
+									<tr id="rptSearchResults__ctl4_trSearchResultsItemTemplate" class="rowalt">
+				<td valign="top" width="12%">
+											<a id="rptSearchResults__ctl4_lbtRegNum" href="javascript:__doPostBack(&#39;rptSearchResults$_ctl4$lbtRegNum&#39;,&#39;&#39;)">IHL-110-91</a></td>
+				<td valign="TOP" width="20%">
+											<span id="rptSearchResults__ctl4_lblLobbyistName">Paul Barnes<br>Jennifer Matthews<br>Aurora Reid<br>Pamela Benson<br></span></td>
+				<td valign="TOP" width="10%">In-House</td>
+				<td valign="TOP" width="16%"></td>
+				<td valign="TOP" width="18%">Canadian Association of Petroleum Producers</td>
+				<td valign="top" width="10%">
+											<span id="rptSearchResults__ctl4_lblEffectiveDate">2005-01-01</span></td>
+				<td valign="TOP" width="10%">Completed</td>
+			</tr>
+			
+								
+									<tr id="rptSearchResults__ctl5_trSearchResultsItemTemplate" class="row">
+				<td valign="top" width="12%">
+											<a id="rptSearchResults__ctl5_lbtRegNum" href="javascript:__doPostBack(&#39;rptSearchResults$_ctl5$lbtRegNum&#39;,&#39;&#39;)">IHL-110-110</a></td>
+				<td width="20%">
+											<span id="rptSearchResults__ctl5_lblLobbyistName">Paul Barnes<br>Brian Maynard<br>Pierre Alvarez<br></span></td>
+				<td valign="TOP" width="10%">In-House</td>
+				<td valign="TOP" width="16%"></td>
+				<td valign="TOP" width="18%">Canadian Association of Petroleum Producers</td>
+				<td valign="TOP" width="14%"><span id="rptSearchResults__ctl5_lblEffectiveDate">2005-01-01</span></td>
+				<td valign="TOP" width="10%">Completed</td>
+			</tr>
+			
+								
+									<tr id="rptSearchResults__ctl6_trSearchResultsItemTemplate" class="rowalt">
+				<td valign="top" width="12%">
+											<a id="rptSearchResults__ctl6_lbtRegNum" href="javascript:__doPostBack(&#39;rptSearchResults$_ctl6$lbtRegNum&#39;,&#39;&#39;)">IHL-110-113</a></td>
+				<td valign="TOP" width="20%">
+											<span id="rptSearchResults__ctl6_lblLobbyistName">Paul Barnes<br>Brian Maynard<br></span></td>
+				<td valign="TOP" width="10%">In-House</td>
+				<td valign="TOP" width="16%"></td>
+				<td valign="TOP" width="18%">Canadian Association of Petroleum Producers</td>
+				<td valign="top" width="10%">
+											<span id="rptSearchResults__ctl6_lblEffectiveDate">2005-01-01</span></td>
+				<td valign="TOP" width="10%">Completed</td>
+			</tr>
+			
+								
+									<tr id="rptSearchResults__ctl7_trSearchResultsItemTemplate" class="row">
+				<td valign="top" width="12%">
+											<a id="rptSearchResults__ctl7_lbtRegNum" href="javascript:__doPostBack(&#39;rptSearchResults$_ctl7$lbtRegNum&#39;,&#39;&#39;)">CL-134-118</a></td>
+				<td width="20%">
+											<span id="rptSearchResults__ctl7_lblLobbyistName">Bill Simpkins</span></td>
+				<td valign="TOP" width="10%">Consultant</td>
+				<td valign="TOP" width="16%">Canadian Petroleum Products Institute</td>
+				<td valign="TOP" width="18%"></td>
+				<td valign="TOP" width="14%"><span id="rptSearchResults__ctl7_lblEffectiveDate">2003-05-01</span></td>
+				<td valign="TOP" width="10%">Terminated</td>
+			</tr>
+			
+								
+                            <tr id="trSearchResultsNav" class="tablefoot" style="width: 100%">
+				<td align="right" colspan="4">
+                                    <a id="lbtFirst" href="javascript:__doPostBack(&#39;lbtFirst&#39;,&#39;&#39;)">&lt;&lt; First</a>&nbsp;
+									<a id="lbtPrevious" href="javascript:__doPostBack(&#39;lbtPrevious&#39;,&#39;&#39;)">&lt; Previous</a>&nbsp;
+									<a id="lbtNext" href="javascript:__doPostBack(&#39;lbtNext&#39;,&#39;&#39;)">Next &gt;</a>&nbsp;
+									<a id="lbtLast" href="javascript:__doPostBack(&#39;lbtLast&#39;,&#39;&#39;)">Last &gt;&gt;</a>
+                                </td>
+				<td align="center" colspan="1">
+                                    &nbsp;
+								</td>
+				<td align="right" colspan="2">
+                                    <a id="hylViewAllRecords" href="javascript:popUpWindow(&#39;P_LobbyistSearch.aspx&#39;, false, true, 800, 600);"><img src="../Images/b_view_all_recs.gif" alt="" border="0" /></a>
+								</td>
+			</tr>
+			
+							
+						</TABLE>
+					</TD>
+		</tr>
+	</table>
+	
+		
+</div></p>
+	<span id="lblErrorMessage"></span>
+<SCRIPT>setFocus('tblSearchResults');</SCRIPT></form>
+
+<!-- START OF FOOTER -->
+<br>
+<div id="gnlfoot">
+
+	<ul id="gnlfootlinks">
+	<!--<li><a href="/Disclaimer.aspx">Disclaimer/Privacy</a></li>-->
+    
+     <li><A href="javascript:popUpWindow('/P_Disclaimer.aspx', false, true, 740, 460);">Disclaimer/Privacy</a></li>
+	<li><a href="/Lobbyist/RegistrationSummary.aspx">Home</a></li>
+	<!--<li><a href="http://www.gs.gov.nl.ca/cca/cr/locations.stm">Contact</a></li>-->
+	<!--<li><a href="http://www.gs.gov.nl.ca/department/contact.html#locations">Contact</a></li>-->
+	<li><a href="https://www.servicenl.gov.nl.ca/department/registries_contact.html" target="_blank" rel="noopener noreferrer">Contact</a></li>
+	<!--<li><a href="http://www.gov.nl.ca">Government Home </a></li>-->
+          <!-- Tony Nov 10, 2022 Added return link  Bug 548 -->
+    <li><a href="##" id="ShowReturn" onClick="history.go(-1); return false;">Return</a></li>
+	</ul>
+
+	<div id="gnlcopyright">
+		This page and all contents are copyright, Government of Newfoundland and Labrador, all rights reserved.
+	</div>
+
+</div><!--for gnlfoot-->
+<!-- Tony Nov 7, 2022 Bug 548  Added javascript below to hide return link   -->
+<script>
+    var x = document.getElementById("ShowReturn");
+    var url = window.location.pathname;
+    var filename = url.substring(url.lastIndexOf('/') + 1);
+    if (filename == 'Disclaimer.aspx') {
+        x.style.display = "block"
+    }
+    else {
+        x.style.display = "none";
+    }
+  </script>
+
+</body>
+
+</html>
+

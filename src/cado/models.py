@@ -166,3 +166,67 @@ class CompanySearchResult(BaseModel):
     total: int
     viewing: str  # e.g. "1-10"
     hits: list[CompanySearchHit]
+
+
+# ---------------------------------------------------------------------------
+# Lobbyist registry
+# ---------------------------------------------------------------------------
+
+
+class LobbyistType(StrEnum):
+    """The two flavours of registration the NL lobbyist registry tracks."""
+
+    CONSULTANT = "Consultant"
+    IN_HOUSE = "In-House"
+
+
+class LobbyistSearchHit(BaseModel):
+    """One row from the lobbyist Search All result page."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    registration_number: str = Field(description="e.g. 'IHL-867-1005' or 'CL-865-1003'")
+    row_index: int = Field(description="1-based __ctlN index used for __doPostBack")
+    name: str
+    lobbyist_type: str  # raw string; could be 'Consultant' / 'In-House'
+    client: str | None = None
+    organization: str | None = None
+    activity_date_text: str | None = None
+    status: str | None = None
+
+
+class LobbyistRegistration(BaseModel):
+    """A parsed ``lobbySummary.aspx`` page.
+
+    The registry packs *a lot* of fields into one record (contact name + addr,
+    firm name + addr, free-form descriptions, several sub-tables). We expose
+    the most useful typed fields plus a ``raw_fields`` dict containing every
+    ``lblXxx`` value we saw on the page, so downstream consumers can still get
+    at things the model doesn't name explicitly.
+    """
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    registration_number: str
+    status: str | None = None
+    lobbyist_type: str | None = None
+    registration_date: date | None = None
+    effective_date: date | None = None
+    amended_date: date | None = None
+    approval_date: date | None = None
+
+    # Contact (the actual person who's lobbying)
+    contact_name: str | None = None
+    contact_address: Address = Field(default_factory=Address)
+
+    # Firm / organisation being represented
+    firm_name: str | None = None
+    firm_address: Address = Field(default_factory=Address)
+
+    # Free-form text fields the registry exposes.
+    particulars: str | None = None
+    organization_description: str | None = None
+    organization_membership: str | None = None
+
+    # Everything else we extracted from labels, untyped.
+    raw_fields: dict[str, str] = Field(default_factory=dict)
