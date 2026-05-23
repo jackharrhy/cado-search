@@ -25,7 +25,7 @@ dependencies = [
 ]
 
 [project.scripts]
-cado = "cado.cli:app"
+cado = "cado.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.8.15,<0.9.0"]
@@ -66,7 +66,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["PLR2004", "S101"]
+"tests/**" = ["PLR2004", "S101", "PLC0415"]
 # Depends() / Query() in default args are *the* FastAPI idiom; suppress
 # B008/PLR0915 for the route module.
 "src/cado/api/app.py" = ["B008", "PLR0915"]
