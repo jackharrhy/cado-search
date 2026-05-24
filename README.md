@@ -98,7 +98,7 @@ For maximum speed, bump concurrency:
 
 ```bash
 uv run cado scrape companies --concurrency 24   # ~14 req/s, ~2 hr full scrape
-uv run cado scrape lobbyists  --concurrency 16  # ~9 min full scrape
+uv run cado scrape lobbyists  --concurrency 8   # ~5 min full scrape
 ```
 
 The scraper sends a descriptive `User-Agent` identifying the project and a
