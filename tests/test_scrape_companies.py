@@ -57,6 +57,12 @@ class FakeCADOClient:
             url="https://cado.eservices.gov.nl.ca/Company/CompanyNameNumberSearch.aspx",
             text="<html/>",
         )
+        # The real scraper reads ``client.last_viewstate`` after the list
+        # response to capture the page's viewstate for re-use across drills.
+        # The fake doesn't model viewstate, so just expose ``None`` -- the
+        # scraper's only requirement is that the attribute exists.
+        self.last_viewstate = None
+        self._last_viewstate = None
 
     async def post_back(
         self,

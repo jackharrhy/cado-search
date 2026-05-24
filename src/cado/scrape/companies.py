@@ -254,21 +254,14 @@ class CompanyScraper:
         self.cache.write(key, list_html, kind="list")
         saved_ids: list[str] = [key + "[list]"]
 
-        # Re-GET the search form between drills so each drill starts from a
-        # clean viewstate. Without this the second postback on a list with
-        # > 1 row 302s to ErrorPage.aspx — empirically the server treats the
-        # earlier drill as "already navigated".
+        # The viewstate captured on the result-list page is reusable for every
+        # row drill from within this session. Reset to it before each drill so
+        # a prior drill's response (which came from CompanyDetails.aspx)
+        # doesn't bleed in -- otherwise the second drill 302s to ErrorPage.
+        list_viewstate = client.last_viewstate
         for hit in parsed.hits.hits:
-            await client.get(SEARCH_URL)
-            await client.post_back(
-                SEARCH_URL,
-                extra_fields={
-                    "txtNameKeywords1": "",
-                    "txtNameKeywords2": "",
-                    "txtCompanyNumber": key,
-                },
-                button=("btnSearch", "10"),
-            )
+            if list_viewstate is not None:
+                client._last_viewstate = list_viewstate
             drill_resp = await client.post_back(
                 SEARCH_URL,
                 event_target=f"rptCompanyNameSearchResults$_ctl{hit.row_index}$lbtCompanyNumber",
