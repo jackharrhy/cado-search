@@ -148,12 +148,26 @@ class LobbyistScraper:
             by_page.setdefault(entry.page_no, []).append(entry)
 
         for page_no in sorted(by_page):
+            page_entries = by_page[page_no]
+
+            # Fast path: if every record on this page is already cached, we
+            # don't need to seek at all. Avoids paying O(page_no) requests
+            # just to walk past cached rows -- which used to dominate the
+            # cost of a "refresh" run after a previous successful scrape.
+            if self.skip_cached and all(
+                self.cache.exists(e.registration_number) for e in page_entries
+            ):
+                for entry in page_entries:
+                    yield LobbyistOutcome(
+                        registration_number=entry.registration_number, kind="skipped"
+                    )
+                continue
+
             # Re-establish the result list at ``page_no``.
             try:
                 await self._seek_to_page(page_no)
             except Exception as exc:
-                # If we can't seek, report errors for every entry on this page.
-                for entry in by_page[page_no]:
+                for entry in page_entries:
                     yield LobbyistOutcome(
                         registration_number=entry.registration_number,
                         kind="error",
@@ -161,7 +175,16 @@ class LobbyistScraper:
                     )
                 continue
 
-            for i, entry in enumerate(by_page[page_no]):
+            # Figure out the last index on this page that actually needs a
+            # drill so we know whether the post-drill re-seek can be skipped.
+            uncached_indices = [
+                i
+                for i, e in enumerate(page_entries)
+                if not (self.skip_cached and self.cache.exists(e.registration_number))
+            ]
+            last_uncached = uncached_indices[-1] if uncached_indices else -1
+
+            for i, entry in enumerate(page_entries):
                 if self.skip_cached and self.cache.exists(entry.registration_number):
                     yield LobbyistOutcome(
                         registration_number=entry.registration_number, kind="skipped"
@@ -185,22 +208,23 @@ class LobbyistScraper:
                         registration_number=entry.registration_number, kind="detail"
                     )
                 except Exception as exc:
-                    log.exception("lobbyist drill failed for %s", entry.registration_number)
+                    log.exception(
+                        "lobbyist drill failed for %s", entry.registration_number
+                    )
                     yield LobbyistOutcome(
                         registration_number=entry.registration_number,
                         kind="error",
                         error=f"{type(exc).__name__}: {exc}",
                     )
-                # Re-seek after drilling so the next row on the same page
-                # is reachable. Skip the re-seek if this was the last entry
-                # on the page — the outer loop will seek the next page.
-                if i < len(by_page[page_no]) - 1:
+                # Re-seek after drilling so the next *uncached* row on the
+                # same page is reachable. Skip if there is no later uncached
+                # row -- saves N requests every time we drill the last
+                # uncached row before a tail of cached ones.
+                if i < last_uncached:
                     try:
                         await self._seek_to_page(page_no)
                     except Exception:
                         log.exception("re-seek to page %d failed", page_no)
-                        # Skip remaining entries on this page; they'll be
-                        # picked up on a future run.
                         break
 
     async def scrape_all(self) -> AsyncIterator[LobbyistOutcome]:
