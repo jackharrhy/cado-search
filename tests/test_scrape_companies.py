@@ -170,6 +170,48 @@ async def test_singleton_detail_writes_one_cache_entry(cache: HtmlCache) -> None
     assert "CONNAIGRE NET INCORPORATED" in cache.read("50000")
 
 
+async def test_singleton_caches_even_when_lblCompanyName_is_empty(
+    cache: HtmlCache,
+) -> None:
+    """Regression: a CompanyDetails.aspx response with an empty
+    ``lblCompanyName`` used to raise CompanyParseError mid-scrape and the
+    HTML was discarded. We now save the HTML unconditionally so the ingest
+    step (which still uses the strict parser) can surface the issue."""
+    broken_html = (
+        "<html><body>"
+        '<span id="lblCompanyName"></span>'
+        '<span id="lblCompanyNumber">12345</span>'
+        '<span id="lblCorporationType">Company</span>'
+        "</body></html>"
+    )
+    scraper, _ = _make_scraper(
+        cache,
+        {"12345": {"kind": "detail", "text": broken_html}},
+    )
+    outcomes = [o async for o in scraper.scrape_numbers([12345])]
+
+    assert outcomes[0].kind == "detail"
+    assert cache.exists("12345", kind="detail")
+    assert cache.read("12345") == broken_html
+
+
+async def test_singleton_falls_back_to_search_number_when_id_missing(
+    cache: HtmlCache,
+) -> None:
+    """If the upstream responds with a CompanyDetails.aspx URL but the body
+    has no usable id at all, save under the search number rather than dropping."""
+    broken_html = "<html><body>upstream had a bad day</body></html>"
+    scraper, _ = _make_scraper(
+        cache,
+        {"99999": {"kind": "detail", "text": broken_html}},
+    )
+    outcomes = [o async for o in scraper.scrape_numbers([99999])]
+
+    assert outcomes[0].kind == "detail"
+    assert outcomes[0].ids_saved == ["99999"]
+    assert cache.exists("99999", kind="detail")
+
+
 async def test_empty_response_records_no_cache(cache: HtmlCache) -> None:
     scraper, _ = _make_scraper(
         cache,
@@ -239,7 +281,7 @@ async def test_skip_cached_avoids_extra_requests(cache: HtmlCache) -> None:
     fake.get.assert_not_called()
 
 
-async def test_per_record_errors_are_isolated(cache: HtmlCache) -> None:
+async def test_per_record_errors_are_isolated(cache: HtmlCache, tmp_path: Path) -> None:
     """If one number raises, others in the batch still complete."""
     detail_html = fx("c_50000_active_with_directors.html")
 
@@ -250,7 +292,12 @@ async def test_per_record_errors_are_isolated(cache: HtmlCache) -> None:
                 raise RuntimeError("simulated upstream 500")
             return await super().post_back(*args, **kwargs)  # type: ignore[misc]
 
-    scraper = CompanyScraper(cache=cache, concurrency=1, skip_cached=False)
+    scraper = CompanyScraper(
+        cache=cache,
+        concurrency=1,
+        skip_cached=False,
+        error_log_path=tmp_path / "errors.jsonl",
+    )
     fake = BoomClient({"50000": {"kind": "detail", "text": detail_html}})
     scraper._clients = [fake]  # type: ignore[assignment]
 
@@ -258,6 +305,37 @@ async def test_per_record_errors_are_isolated(cache: HtmlCache) -> None:
     assert outcomes[50000].kind == "detail"
     assert outcomes[999].kind == "error"
     assert "simulated upstream 500" in (outcomes[999].error or "")
+
+
+async def test_error_log_is_persisted_and_readable(cache: HtmlCache, tmp_path: Path) -> None:
+    """Errors are appended to a JSONL file and re-readable for retry."""
+    log_path = tmp_path / "errors.jsonl"
+
+    class AlwaysBoomClient(FakeCADOClient):
+        async def post_back(self, *args: object, **kwargs: object) -> Any:
+            raise RuntimeError("boom")
+
+    scraper = CompanyScraper(
+        cache=cache,
+        concurrency=1,
+        skip_cached=False,
+        error_log_path=log_path,
+    )
+    fake = AlwaysBoomClient({})
+    scraper._clients = [fake]  # type: ignore[assignment]
+
+    outcomes = [o async for o in scraper.scrape_numbers([111, 222, 333])]
+    assert all(o.kind == "error" for o in outcomes)
+
+    assert log_path.exists()
+    lines = log_path.read_text().splitlines()
+    assert len(lines) == 3
+    # Helper round-trip:
+    assert CompanyScraper.read_error_log(log_path) == [111, 222, 333]
+
+
+def test_read_error_log_returns_empty_when_file_missing(tmp_path: Path) -> None:
+    assert CompanyScraper.read_error_log(tmp_path / "nope.jsonl") == []
 
 
 async def test_stats_accumulates_outcomes() -> None:

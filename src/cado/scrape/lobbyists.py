@@ -176,9 +176,7 @@ class LobbyistScraper:
         for entry in entries:
             if self.skip_cached and self.cache.exists(entry.registration_number):
                 await outcomes.put(
-                    LobbyistOutcome(
-                        registration_number=entry.registration_number, kind="skipped"
-                    )
+                    LobbyistOutcome(registration_number=entry.registration_number, kind="skipped")
                 )
                 continue
             pages.setdefault(entry.page_no, []).append(entry)
@@ -214,8 +212,7 @@ class LobbyistScraper:
                                 registration_number=entry.registration_number,
                                 kind="error",
                                 error=(
-                                    f"page_worker({page_no}) crashed: "
-                                    f"{type(exc).__name__}: {exc}"
+                                    f"page_worker({page_no}) crashed: {type(exc).__name__}: {exc}"
                                 ),
                             )
                         )
@@ -266,9 +263,7 @@ class LobbyistScraper:
 
             K * (1 GET + 1 SearchAll + (N-1) Next + 1 drill)
         """
-        async with CADOClient(
-            limiter=self._limiter, semaphore=self._semaphore
-        ) as client:
+        async with CADOClient(limiter=self._limiter, semaphore=self._semaphore) as client:
             await self._walk_to_page(client, page_no)
             page_viewstate = client.last_viewstate
             if page_viewstate is None:
@@ -289,9 +284,7 @@ class LobbyistScraper:
                 try:
                     response = await client.post_back(
                         SEARCH_URL,
-                        event_target=(
-                            f"rptSearchResults$_ctl{entry.row_index}$lbtRegNum"
-                        ),
+                        event_target=(f"rptSearchResults$_ctl{entry.row_index}$lbtRegNum"),
                         extra_fields=_SEARCH_ALL_FIELDS,
                     )
                 except Exception as exc:
@@ -314,9 +307,7 @@ class LobbyistScraper:
                     )
                     continue
                 self.cache.write(entry.registration_number, response.text)
-                yield LobbyistOutcome(
-                    registration_number=entry.registration_number, kind="detail"
-                )
+                yield LobbyistOutcome(registration_number=entry.registration_number, kind="detail")
 
     async def _walk_to_page(self, client: CADOClient, page_no: int) -> None:
         """Establish ``page_no`` of the Search All results in ``client``'s session."""

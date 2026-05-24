@@ -262,3 +262,38 @@ class TestParseSearchResponseDispatch:
 def test_parse_company_details_rejects_non_detail_page() -> None:
     with pytest.raises(CompanyParseError, match="lblCompanyName"):
         parse_company_details("<html><body>not a detail page</body></html>")
+
+
+# ---------------------------------------------------------------------------
+# extract_company_number (lightweight id-only extractor for the scrape path)
+# ---------------------------------------------------------------------------
+
+
+class TestExtractCompanyNumber:
+    """The scrape path needs the id even when the rest of the page is broken."""
+
+    def test_normal_record(self):
+        from cado.parsers import extract_company_number
+
+        assert extract_company_number(fx("c_50000_active_with_directors.html")) == "50000"
+
+    def test_suffixed_record(self):
+        from cado.parsers import extract_company_number
+
+        assert extract_company_number(fx("c_2D_extraprov_old.html")) == "2D"
+
+    def test_returns_none_for_non_detail_page(self):
+        from cado.parsers import extract_company_number
+
+        assert extract_company_number("<html><body>no labels here</body></html>") is None
+
+    def test_returns_none_when_number_span_is_empty(self):
+        """The 51-out-of-104k case from the real scrape: detail page rendered
+        but ``lblCompanyNumber`` is blank. We refuse to invent an id."""
+        from cado.parsers import extract_company_number
+
+        html = (
+            '<html><body><span id="lblCompanyName"></span>'
+            '<span id="lblCompanyNumber"></span></body></html>'
+        )
+        assert extract_company_number(html) is None

@@ -118,6 +118,63 @@ def _print_company_stats(stats: ScrapeStats) -> None:
     console.print(table)
 
 
+@scrape_app.command("retry-errors")
+def scrape_retry_errors_cmd(
+    concurrency: Annotated[int, typer.Option(help="Concurrent workers")] = settings.max_concurrency,
+    rate: Annotated[
+        float, typer.Option("--rate", help="Global requests/second cap")
+    ] = settings.requests_per_second,
+    verbose: Annotated[bool, typer.Option("-v", "--verbose")] = False,
+) -> None:
+    """Re-scrape only the numbers that errored in a previous run.
+
+    Reads the deduplicated list of failed company numbers from
+    ``data/scrape_errors_companies.jsonl``, truncates that file, then runs
+    the scraper against just those numbers. Numbers that still fail are
+    re-appended to the log for the next pass.
+    """
+    _configure_logging(verbose)
+
+    numbers = CompanyScraper.read_error_log()
+    if not numbers:
+        console.print("[yellow]No errors logged from a previous run; nothing to retry.[/]")
+        return
+
+    console.print(f"Retrying [bold]{len(numbers)}[/] errored numbers.")
+    error_log = settings.data_dir / "scrape_errors_companies.jsonl"
+    # Truncate so this run produces a fresh log of just the *still*-failed
+    # records. The scraper appends as it goes.
+    if error_log.exists():
+        error_log.unlink()
+
+    async def _run() -> None:
+        stats = ScrapeStats()
+        async with CompanyScraper(
+            concurrency=concurrency,
+            rate_per_second=rate,
+            # Force re-fetch: cached records would just re-fail the same way.
+            skip_cached=False,
+        ) as scraper:
+            with _progress(total=len(numbers)) as progress:
+                task = progress.add_task("retrying errors", total=len(numbers))
+                async for outcome in scraper.scrape_numbers(numbers):
+                    stats.record(outcome)
+                    progress.update(
+                        task,
+                        advance=1,
+                        description=(
+                            f"retrying errors  "
+                            f"[green]ok {stats.details}[/] "
+                            f"[blue]list {stats.multi_hit_pages}[/] "
+                            f"[yellow]empty {stats.empty}[/] "
+                            f"[red]err {stats.errors}[/]"
+                        ),
+                    )
+        _print_company_stats(stats)
+
+    asyncio.run(_run())
+
+
 # ---------------------------------------------------------------------------
 # scrape lobbyists
 # ---------------------------------------------------------------------------

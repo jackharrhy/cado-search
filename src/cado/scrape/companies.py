@@ -24,15 +24,16 @@ retried either.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from collections.abc import AsyncIterator, Iterable
 from contextlib import AsyncExitStack
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 
 from ..http import CADOClient, RateLimiter
-from ..parsers import parse_search_response
-from ..parsers.company import SearchResponse
+from ..parsers import extract_company_number, parse_company_search_results
 from ..settings import settings
 from ..storage import HtmlCache
 
@@ -109,11 +110,17 @@ class CompanyScraper:
         concurrency: int | None = None,
         rate_per_second: float | None = None,
         skip_cached: bool = True,
+        error_log_path: Path | None = None,
     ) -> None:
         self.cache = cache or HtmlCache(registry="companies")
         self.concurrency = concurrency or settings.max_concurrency
         self.rate_per_second = rate_per_second or settings.requests_per_second
         self.skip_cached = skip_cached
+        # Where to append per-record error rows (one JSON object per line).
+        # Default: <data_dir>/scrape_errors_companies.jsonl
+        self.error_log_path = error_log_path or (
+            settings.data_dir / "scrape_errors_companies.jsonl"
+        )
 
         # Shared across all workers.
         self._limiter = RateLimiter(self.rate_per_second)
@@ -186,6 +193,7 @@ class CompanyScraper:
                         kind="error",
                         error=f"{type(exc).__name__}: {exc}",
                     )
+                    self._append_error_log(outcome)
                 await outcomes.put(outcome)
 
         async def workforce() -> None:
@@ -211,10 +219,56 @@ class CompanyScraper:
                     t.cancel()
             await asyncio.gather(prod, watcher, *workers, return_exceptions=True)
 
+    # ---- error log ---------------------------------------------------
+
+    def _append_error_log(self, outcome: ScrapeOutcome) -> None:
+        """Persist a per-record error to ``self.error_log_path`` (JSONL)."""
+        self.error_log_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "number": outcome.number,
+            "error": outcome.error,
+            "at": outcome.attempted_at.isoformat(),
+        }
+        with self.error_log_path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(payload) + "\n")
+
+    @classmethod
+    def read_error_log(cls, path: Path | None = None) -> list[int]:
+        """Return the deduplicated list of company numbers from an error log."""
+        path = path or (settings.data_dir / "scrape_errors_companies.jsonl")
+        if not path.exists():
+            return []
+        seen: set[int] = set()
+        with path.open(encoding="utf-8") as fh:
+            for raw in fh:
+                stripped = raw.strip()
+                if not stripped:
+                    continue
+                try:
+                    n = json.loads(stripped)["number"]
+                except (ValueError, KeyError):
+                    continue
+                seen.add(int(n))
+        return sorted(seen)
+
     # ---- per-record logic ---------------------------------------------
 
     async def _scrape_one(self, client: CADOClient, number: int) -> ScrapeOutcome:
-        """Scrape a single search number, drilling into suffixed rows as needed."""
+        """Scrape a single search number, drilling into suffixed rows as needed.
+
+        Classification is done by the URL the upstream redirected us to, not
+        by parsing the body:
+
+        * ``CompanyDetails.aspx``                -> singleton (detail kind)
+        * ``CompanyNameNumberSearch.aspx`` + a result table -> multi-row (hits)
+        * ``CompanyNameNumberSearch.aspx`` + no table       -> miss (empty)
+
+        We *always* save the response HTML when the upstream gave us a detail
+        page, even if the body is malformed (e.g. an empty ``lblCompanyName``,
+        which the upstream produces ~0.05% of the time for unknown reasons).
+        Re-parsing happens at ingest time and any record that's still bad
+        ends up in the ``ingest_log`` table with ``parsed_ok=false``.
+        """
         key = str(number)
 
         if self.skip_cached and (
@@ -237,19 +291,22 @@ class CompanyScraper:
             button=("btnSearch", "10"),
         )
         final_url = str(response.url)
-        parsed: SearchResponse = parse_search_response(response.text, final_url=final_url)
 
-        if parsed.kind == "details":
-            assert parsed.details is not None
-            saved_id = parsed.details.number  # may differ from `number` for suffixed
+        if "CompanyDetails.aspx" in final_url:
+            # Singleton path. The upstream's canonical id may differ from the
+            # search number (e.g. searching '2D' resolves to itself, but a
+            # suffix-less search for '2' lands on '2D' on some legacy paths).
+            # Best-effort extract; fall back to the search number.
+            saved_id = extract_company_number(response.text) or key
             self.cache.write(saved_id, response.text, kind="detail")
             return ScrapeOutcome(number=number, kind="detail", ids_saved=[saved_id])
 
-        if parsed.kind == "empty":
+        # Otherwise we're back on the search form; figure out which sub-case.
+        hits = parse_company_search_results(response.text)
+        if not hits.hits:
             return ScrapeOutcome(number=number, kind="empty")
 
-        # Step 3 (multi-row): save the list page, then drill into each suffixed row.
-        assert parsed.kind == "hits" and parsed.hits is not None
+        # Multi-row: save the list page, then drill into each suffixed row.
         list_html = response.text
         self.cache.write(key, list_html, kind="list")
         saved_ids: list[str] = [key + "[list]"]
@@ -259,7 +316,7 @@ class CompanyScraper:
         # a prior drill's response (which came from CompanyDetails.aspx)
         # doesn't bleed in -- otherwise the second drill 302s to ErrorPage.
         list_viewstate = client.last_viewstate
-        for hit in parsed.hits.hits:
+        for hit in hits.hits:
             if list_viewstate is not None:
                 client._last_viewstate = list_viewstate
             drill_resp = await client.post_back(
@@ -279,6 +336,9 @@ class CompanyScraper:
                     drill_resp.url,
                 )
                 continue
+            # Trust the hit's number rather than re-extracting; this matches
+            # the search row's reported id and is correct even if the detail
+            # page has an empty lblCompanyNumber.
             self.cache.write(hit.number, drill_resp.text, kind="detail")
             saved_ids.append(hit.number)
 

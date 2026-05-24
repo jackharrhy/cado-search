@@ -83,6 +83,22 @@ def parse_search_response(html: str, *, final_url: str | None = None) -> SearchR
     return SearchResponse(kind="hits", hits=hits)
 
 
+def extract_company_number(html: str) -> str | None:
+    """Pull just the canonical id from a CompanyDetails.aspx page.
+
+    Useful for the scraper, which only needs to know what filename to save
+    under -- it shouldn't refuse to cache HTML just because some other field
+    (e.g. ``lblCompanyName``) is empty on a malformed upstream response.
+    Returns ``None`` if the page isn't a details page at all.
+    """
+    soup = BeautifulSoup(html, "lxml")
+    el = soup.find(id="lblCompanyNumber")
+    if el is None:
+        return None
+    text = _collapse(el.get_text())
+    return text or None
+
+
 # ---------------------------------------------------------------------------
 # Detail page parser
 # ---------------------------------------------------------------------------
