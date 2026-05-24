@@ -54,6 +54,36 @@ uv run cado serve
 
 `cado info` prints a summary of the on-disk cache and DuckDB row counts.
 
+### On-disk layout
+
+Everything lives under `data_dir` (default: `<project_root>/data/`, override
+via `CADO_DATA_DIR`):
+
+```
+data/
+├── html/                          ← raw scraped HTML cache (source of truth)
+│   ├── companies/
+│   │   ├── 10/10000.html.gz       ← CompanyDetails.aspx, sharded by first 2 chars
+│   │   ├── 2D/2D.html.gz          ← legacy suffixed ids
+│   │   └── _list/1.list.html.gz   ← multi-row search results (low numbers only)
+│   └── lobbyists/
+│       └── IH/IHL-867-1005.html.gz
+└── cado.duckdb                    ← derived database (rebuildable from the cache)
+```
+
+Approximate sizes once full: ~500 MB for `data/html/companies/`, ~10 MB for
+`data/html/lobbyists/`, ~150 MB for `cado.duckdb`.
+
+### Cleaning up
+
+```bash
+uv run cado clean db        # drop the DuckDB; rebuild with `cado ingest all`
+uv run cado clean cache     # drop the raw HTML cache (destructive! re-scrape needed)
+uv run cado clean all       # drop everything
+```
+
+All three prompt for confirmation; pass `--yes` to skip.
+
 ### Concurrency, rate, and politeness
 
 Defaults: **20 req/s soft cap, 16 concurrent connections**.
