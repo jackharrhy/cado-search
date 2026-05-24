@@ -125,6 +125,9 @@ def _print_company_stats(stats: ScrapeStats) -> None:
 
 @scrape_app.command("lobbyists")
 def scrape_lobbyists_cmd(
+    concurrency: Annotated[
+        int, typer.Option(help="Concurrent detail-fetch workers")
+    ] = settings.max_concurrency,
     rate: Annotated[
         float, typer.Option("--rate", help="Global requests/second cap")
     ] = settings.requests_per_second,
@@ -137,7 +140,11 @@ def scrape_lobbyists_cmd(
     _configure_logging(verbose)
 
     async def _run() -> None:
-        async with LobbyistScraper(rate_per_second=rate, skip_cached=not rescrape) as scraper:
+        async with LobbyistScraper(
+            rate_per_second=rate,
+            concurrency=concurrency,
+            skip_cached=not rescrape,
+        ) as scraper:
             console.print("[cyan]Building index across all pages…[/]")
             total, entries = await scraper.build_index()
             console.print(
@@ -254,7 +261,9 @@ def ingest_all_cmd(
 def serve(
     host: Annotated[str, typer.Option(help="Interface to bind on")] = "127.0.0.1",
     port: Annotated[int, typer.Option(help="Port to listen on")] = 8000,
-    reload: Annotated[bool, typer.Option("--reload", help="Auto-reload on code changes (dev)")] = False,
+    reload: Annotated[
+        bool, typer.Option("--reload", help="Auto-reload on code changes (dev)")
+    ] = False,
 ) -> None:
     """Serve the HTMX search UI."""
     import uvicorn  # noqa: PLC0415 - deferred so non-serve commands don't pay the uvicorn import cost

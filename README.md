@@ -41,7 +41,7 @@ Empirical findings driving the design (all in `tests/fixtures/`):
 ```bash
 uv sync
 
-# Scrape from upstream (~6 hours at 5 req/s for the full company range)
+# Scrape from upstream (~3 hours for the full company range at defaults)
 uv run cado scrape companies --start 1 --stop 105000
 uv run cado scrape lobbyists
 
@@ -54,12 +54,26 @@ uv run cado serve
 
 `cado info` prints a summary of the on-disk cache and DuckDB row counts.
 
-### Politeness
+### Concurrency, rate, and politeness
 
-Default settings: **5 requests/sec, max 4 concurrent**. The scraper sends
-a descriptive `User-Agent` identifying the project and a contact email.
-Adjust via `--rate` / `--concurrency` or the `CADO_REQUESTS_PER_SECOND` /
-`CADO_MAX_CONCURRENCY` environment variables.
+Defaults: **20 req/s soft cap, 16 concurrent connections**.
+
+These were picked empirically. The upstream:
+
+- handles 16+ concurrent connections cleanly with no observable backpressure
+- sustains ~12-14 req/s effective throughput before any diminishing returns
+- has ~250-500ms per-request latency, which dominates over any sensible rate cap
+
+For maximum speed, bump concurrency:
+
+```bash
+uv run cado scrape companies --concurrency 24   # ~14 req/s, ~2 hr full scrape
+uv run cado scrape lobbyists  --concurrency 16  # ~9 min full scrape
+```
+
+The scraper sends a descriptive `User-Agent` identifying the project and a
+contact email. All settings can be overridden via `--concurrency` / `--rate`
+flags or the `CADO_MAX_CONCURRENCY` / `CADO_REQUESTS_PER_SECOND` env vars.
 
 ### Resumption
 

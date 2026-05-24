@@ -1,23 +1,23 @@
 """Bulk scraper for the Registry of Lobbyists.
 
-The lobbyist registry is small (low hundreds of records) and exposes a
-"Search All Registrations" button that lists every record paginated 10 at
-a time. We scrape it in two passes:
+Two passes:
 
-1. **Index pass** — walk every page of the Search All results, capturing
-   the ``(registration_number, page_no, row_index)`` of every record.
-   This is cheap (~10s of requests) and gives us a stable work list.
-2. **Detail pass** — for each indexed entry, re-walk back to its page and
-   postback-drill into the row to fetch its ``lobbySummary.aspx``. The
-   detail page is cached on disk under the registration number.
+1. **Index pass** — walk every page of the Search All results, capturing the
+   ``(registration_number, page_no, row_index)`` of every record. Necessarily
+   single-session because pagination is server-stateful, but cheap (~25s).
+2. **Detail pass** — for each indexed entry, dispatch to a worker pool. Each
+   worker is an *independent* CADOClient (its own cookies + viewstate) that
+   walks to its assigned page, drills the assigned row, then dies and gets
+   replaced by a fresh worker on the next entry.
 
-Single-threaded by design: pagination is server-stateful (cookies +
-viewstate), so a single sequential worker is both correct and quick enough
-to dump the entire registry in a few minutes.
+The detail pass is the slow one. Empirically the upstream handles 12-16
+concurrent sessions cleanly, and parallelising the walk-and-drill gives a
+~5x speedup over the old re-seek-after-each-drill approach.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
@@ -63,38 +63,52 @@ class LobbyistOutcome:
 
 
 class LobbyistScraper:
-    """Single-worker lobbyist registry scraper."""
+    """Lobbyist registry scraper with a parallel detail-fetch pool.
+
+    The ``__aenter__`` opens one *index* client used to enumerate pages
+    sequentially. Detail fetches each spin up their own short-lived client
+    so they don't share session cookies with the indexer or each other.
+
+    All clients share a global :class:`~cado.http.RateLimiter` and
+    :class:`asyncio.Semaphore` so the upstream isn't hammered.
+    """
 
     def __init__(
         self,
         *,
         cache: HtmlCache | None = None,
         rate_per_second: float | None = None,
+        concurrency: int | None = None,
         skip_cached: bool = True,
     ) -> None:
         self.cache = cache or HtmlCache(registry="lobbyists")
         self.rate_per_second = rate_per_second or settings.requests_per_second
+        self.concurrency = concurrency or settings.max_concurrency
         self.skip_cached = skip_cached
+        # Shared across the index client and every detail worker.
         self._limiter = RateLimiter(self.rate_per_second)
-        self._client: CADOClient | None = None
+        self._semaphore = asyncio.Semaphore(self.concurrency)
+        self._index_client: CADOClient | None = None
 
     # ---- lifecycle ----------------------------------------------------
 
     async def __aenter__(self) -> LobbyistScraper:
-        self._client = CADOClient(limiter=self._limiter)
-        await self._client.__aenter__()
+        # The index client gets the shared limiter but NOT the shared
+        # semaphore -- we don't want index walks to starve detail workers.
+        self._index_client = CADOClient(limiter=self._limiter)
+        await self._index_client.__aenter__()
         return self
 
     async def __aexit__(self, *exc: object) -> None:
-        if self._client is not None:
-            await self._client.__aexit__(*exc)
-            self._client = None
+        if self._index_client is not None:
+            await self._index_client.__aexit__(*exc)
+            self._index_client = None
 
     # ---- public API ---------------------------------------------------
 
     async def build_index(self) -> tuple[int | None, list[LobbyistIndexEntry]]:
         """Walk every page of Search All and return one entry per record."""
-        client = self._require_client()
+        client = self._require_index_client()
 
         await client.get(SEARCH_URL)
         page = await client.post_back(
@@ -131,101 +145,72 @@ class LobbyistScraper:
     async def scrape_details(
         self, entries: list[LobbyistIndexEntry]
     ) -> AsyncIterator[LobbyistOutcome]:
-        """Fetch a ``lobbySummary.aspx`` for each indexed entry.
+        """Fetch a ``lobbySummary.aspx`` for each entry, parallel across workers.
 
-        Entries are processed in their original order; the scraper walks
-        forward through pagination, drilling into each row in turn. After
-        a drill the session loses the result table, so we re-seek to the
-        same page before drilling the next row on that page.
+        Each entry is its own unit of work: a fresh client walks to the entry's
+        page and drills the row. Workers share a global rate limit and
+        semaphore so the total in-flight request count is bounded.
+
+        Outcomes are yielded as workers complete, in arbitrary order. Sorting
+        entries by page_no descending before calling this method gives a
+        modest tail-latency win: the longest jobs (drilling rows on the last
+        page) start first.
         """
         if not entries:
             return
-        client = self._require_client()
 
-        # Group entries by page so we can re-walk pagination once per page.
-        by_page: dict[int, list[LobbyistIndexEntry]] = {}
+        # Pre-filter cached entries so we don't even queue them as work.
+        outcomes: asyncio.Queue[LobbyistOutcome | None] = asyncio.Queue()
+        work: list[LobbyistIndexEntry] = []
         for entry in entries:
-            by_page.setdefault(entry.page_no, []).append(entry)
+            if self.skip_cached and self.cache.exists(entry.registration_number):
+                # Cache hits get yielded immediately, no network needed.
+                await outcomes.put(
+                    LobbyistOutcome(registration_number=entry.registration_number, kind="skipped")
+                )
+            else:
+                work.append(entry)
 
-        for page_no in sorted(by_page):
-            page_entries = by_page[page_no]
+        if not work:
+            # Drain the queue of skipped entries and return.
+            while not outcomes.empty():
+                outcome = outcomes.get_nowait()
+                if outcome is not None:
+                    yield outcome
+            return
 
-            # Fast path: if every record on this page is already cached, we
-            # don't need to seek at all. Avoids paying O(page_no) requests
-            # just to walk past cached rows -- which used to dominate the
-            # cost of a "refresh" run after a previous successful scrape.
-            if self.skip_cached and all(
-                self.cache.exists(e.registration_number) for e in page_entries
-            ):
-                for entry in page_entries:
-                    yield LobbyistOutcome(
-                        registration_number=entry.registration_number, kind="skipped"
-                    )
-                continue
+        # Sort by page_no descending so deep-page work starts first; this
+        # smooths the tail when concurrency < number_of_pages.
+        work.sort(key=lambda e: -e.page_no)
 
-            # Re-establish the result list at ``page_no``.
+        async def worker(entry: LobbyistIndexEntry) -> None:
             try:
-                await self._seek_to_page(page_no)
+                outcome = await self._fetch_one(entry)
             except Exception as exc:
-                for entry in page_entries:
-                    yield LobbyistOutcome(
-                        registration_number=entry.registration_number,
-                        kind="error",
-                        error=f"seek_to_page({page_no}) failed: {exc}",
-                    )
-                continue
+                log.exception("lobbyist fetch failed for %s", entry.registration_number)
+                outcome = LobbyistOutcome(
+                    registration_number=entry.registration_number,
+                    kind="error",
+                    error=f"{type(exc).__name__}: {exc}",
+                )
+            await outcomes.put(outcome)
 
-            # Figure out the last index on this page that actually needs a
-            # drill so we know whether the post-drill re-seek can be skipped.
-            uncached_indices = [
-                i
-                for i, e in enumerate(page_entries)
-                if not (self.skip_cached and self.cache.exists(e.registration_number))
-            ]
-            last_uncached = uncached_indices[-1] if uncached_indices else -1
+        async def supervisor() -> None:
+            await asyncio.gather(*(worker(e) for e in work))
+            await outcomes.put(None)  # sentinel
 
-            for i, entry in enumerate(page_entries):
-                if self.skip_cached and self.cache.exists(entry.registration_number):
-                    yield LobbyistOutcome(
-                        registration_number=entry.registration_number, kind="skipped"
-                    )
-                    continue
-                try:
-                    response = await client.post_back(
-                        SEARCH_URL,
-                        event_target=f"rptSearchResults$_ctl{entry.row_index}$lbtRegNum",
-                        extra_fields=_SEARCH_ALL_FIELDS,
-                    )
-                    if "lobbySummary.aspx" not in str(response.url):
-                        yield LobbyistOutcome(
-                            registration_number=entry.registration_number,
-                            kind="error",
-                            error=f"unexpected redirect to {response.url}",
-                        )
-                        continue
-                    self.cache.write(entry.registration_number, response.text)
-                    yield LobbyistOutcome(
-                        registration_number=entry.registration_number, kind="detail"
-                    )
-                except Exception as exc:
-                    log.exception(
-                        "lobbyist drill failed for %s", entry.registration_number
-                    )
-                    yield LobbyistOutcome(
-                        registration_number=entry.registration_number,
-                        kind="error",
-                        error=f"{type(exc).__name__}: {exc}",
-                    )
-                # Re-seek after drilling so the next *uncached* row on the
-                # same page is reachable. Skip if there is no later uncached
-                # row -- saves N requests every time we drill the last
-                # uncached row before a tail of cached ones.
-                if i < last_uncached:
-                    try:
-                        await self._seek_to_page(page_no)
-                    except Exception:
-                        log.exception("re-seek to page %d failed", page_no)
-                        break
+        supervisor_task = asyncio.create_task(supervisor(), name="lobbyist-supervisor")
+
+        try:
+            while True:
+                outcome = await outcomes.get()
+                if outcome is None:
+                    break
+                yield outcome
+        finally:
+            if not supervisor_task.done():
+                supervisor_task.cancel()
+            await asyncio.gather(supervisor_task, return_exceptions=True)
 
     async def scrape_all(self) -> AsyncIterator[LobbyistOutcome]:
         """Convenience: build the index then scrape every detail."""
@@ -235,14 +220,31 @@ class LobbyistScraper:
 
     # ---- internals ----------------------------------------------------
 
-    def _require_client(self) -> CADOClient:
-        if self._client is None:
+    def _require_index_client(self) -> CADOClient:
+        if self._index_client is None:
             raise RuntimeError("LobbyistScraper must be used as an async context manager")
-        return self._client
+        return self._index_client
 
-    async def _seek_to_page(self, page_no: int) -> None:
-        """GET the search form, click Search All, advance to ``page_no``."""
-        client = self._require_client()
+    async def _fetch_one(self, entry: LobbyistIndexEntry) -> LobbyistOutcome:
+        """Spin up a fresh client, walk to the entry's page, drill the row."""
+        async with CADOClient(limiter=self._limiter, semaphore=self._semaphore) as client:
+            await self._walk_to_page(client, entry.page_no)
+            response = await client.post_back(
+                SEARCH_URL,
+                event_target=f"rptSearchResults$_ctl{entry.row_index}$lbtRegNum",
+                extra_fields=_SEARCH_ALL_FIELDS,
+            )
+            if "lobbySummary.aspx" not in str(response.url):
+                return LobbyistOutcome(
+                    registration_number=entry.registration_number,
+                    kind="error",
+                    error=f"unexpected redirect to {response.url}",
+                )
+            self.cache.write(entry.registration_number, response.text)
+            return LobbyistOutcome(registration_number=entry.registration_number, kind="detail")
+
+    async def _walk_to_page(self, client: CADOClient, page_no: int) -> None:
+        """Establish ``page_no`` of the Search All results in ``client``'s session."""
         await client.get(SEARCH_URL)
         await client.post_back(
             SEARCH_URL,
