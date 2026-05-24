@@ -139,6 +139,44 @@ src/cado/
 └── cli.py            # `cado` Typer entry-point
 ```
 
+## Docker
+
+A multi-arch image (linux/amd64 + linux/arm64) is published to GitHub
+Container Registry on every push to `main` and on every `v*.*.*` tag:
+
+```
+ghcr.io/jackharrhy/cado:latest
+ghcr.io/jackharrhy/cado:sha-<short>
+ghcr.io/jackharrhy/cado:v1.2.3      (on tags)
+```
+
+The image defaults to running `cado serve --host 0.0.0.0 --port 8000`.
+Mount a volume at `/data` to persist the HTML cache and DuckDB across
+container restarts:
+
+```bash
+docker run -d \
+  --name cado \
+  -p 8000:8000 \
+  -v cado-data:/data \
+  ghcr.io/jackharrhy/cado:latest
+```
+
+Run scraping and ingest as one-shot commands against the same volume:
+
+```bash
+docker run --rm -v cado-data:/data ghcr.io/jackharrhy/cado:latest \
+  scrape companies --concurrency 24
+
+docker run --rm -v cado-data:/data ghcr.io/jackharrhy/cado:latest \
+  ingest all
+
+docker run --rm -v cado-data:/data ghcr.io/jackharrhy/cado:latest \
+  info
+```
+
+A `compose.yaml` is included for convenience: `docker compose up`.
+
 ## Tests
 
 ```bash
