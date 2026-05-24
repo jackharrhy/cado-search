@@ -2,17 +2,26 @@
 
 Two passes:
 
-1. **Index pass** — walk every page of the Search All results, capturing the
-   ``(registration_number, page_no, row_index)`` of every record. Necessarily
-   single-session because pagination is server-stateful, but cheap (~25s).
-2. **Detail pass** — for each indexed entry, dispatch to a worker pool. Each
-   worker is an *independent* CADOClient (its own cookies + viewstate) that
-   walks to its assigned page, drills the assigned row, then dies and gets
-   replaced by a fresh worker on the next entry.
+1. **Index pass** — walk every page of the Search All results, capturing
+   the ``(registration_number, page_no, row_index)`` of every record.
+   Single-session by necessity (pagination is server-stateful) but cheap
+   (~25s for the full registry).
+2. **Detail pass** — work is grouped by *page*. Each unit of work is one
+   page; a worker walks its session to the assigned page, **captures the
+   viewstate**, then drills every row on that page reusing that one
+   captured viewstate. K such workers run in parallel.
 
-The detail pass is the slow one. Empirically the upstream handles 12-16
-concurrent sessions cleanly, and parallelising the walk-and-drill gives a
-~5x speedup over the old re-seek-after-each-drill approach.
+The viewstate trick is the key win. Empirically (verified on production),
+the viewstate captured at page N is reusable for as many drills as we
+want from within the same session, even after a prior drill has navigated
+the session to a detail page. The original "one worker per row" design
+paid `~N Next clicks` per row; this design pays it once per page.
+
+Rough cost model with ``concurrency=8`` over 73 pages of 10 rows:
+    walk_time(page p) ≈ 0.5 + 0.25*p seconds
+    drill_batch_time ≈ 0.5 + 0.5 per row, serial within a page
+    total wall time ≈ slowest_page_chain_through_workers
+                    ≈ ~4 minutes for the whole registry
 """
 
 from __future__ import annotations
@@ -145,59 +154,75 @@ class LobbyistScraper:
     async def scrape_details(
         self, entries: list[LobbyistIndexEntry]
     ) -> AsyncIterator[LobbyistOutcome]:
-        """Fetch a ``lobbySummary.aspx`` for each entry, parallel across workers.
+        """Fetch ``lobbySummary.aspx`` for each entry.
 
-        Each entry is its own unit of work: a fresh client walks to the entry's
-        page and drills the row. Workers share a global rate limit and
-        semaphore so the total in-flight request count is bounded.
+        Entries are grouped by ``page_no``; each page becomes one unit of
+        work handled by a single :class:`CADOClient`. The client walks to
+        the assigned page, captures the page's viewstate, then issues
+        ``ctl1``..``ctlN`` drill postbacks reusing that one viewstate.
+        Up to ``self.concurrency`` page-workers run in parallel.
 
-        Outcomes are yielded as workers complete, in arbitrary order. Sorting
-        entries by page_no descending before calling this method gives a
-        modest tail-latency win: the longest jobs (drilling rows on the last
-        page) start first.
+        Pages are dispatched newest-first (highest ``page_no`` first) so the
+        longest walks start before the queue thins out — a worker that
+        finishes early can grab a cheaper page next.
         """
         if not entries:
             return
 
-        # Pre-filter cached entries so we don't even queue them as work.
+        # Pre-filter cached entries; emit ``skipped`` outcomes for them and
+        # never queue them as work.
         outcomes: asyncio.Queue[LobbyistOutcome | None] = asyncio.Queue()
-        work: list[LobbyistIndexEntry] = []
+        pages: dict[int, list[LobbyistIndexEntry]] = {}
         for entry in entries:
             if self.skip_cached and self.cache.exists(entry.registration_number):
-                # Cache hits get yielded immediately, no network needed.
                 await outcomes.put(
-                    LobbyistOutcome(registration_number=entry.registration_number, kind="skipped")
+                    LobbyistOutcome(
+                        registration_number=entry.registration_number, kind="skipped"
+                    )
                 )
-            else:
-                work.append(entry)
+                continue
+            pages.setdefault(entry.page_no, []).append(entry)
 
-        if not work:
-            # Drain the queue of skipped entries and return.
+        if not pages:
             while not outcomes.empty():
                 outcome = outcomes.get_nowait()
                 if outcome is not None:
                     yield outcome
             return
 
-        # Sort by page_no descending so deep-page work starts first; this
-        # smooths the tail when concurrency < number_of_pages.
-        work.sort(key=lambda e: -e.page_no)
+        # Process deep pages first; their walk dominates.
+        page_queue: asyncio.Queue[int | None] = asyncio.Queue()
+        for page_no in sorted(pages, reverse=True):
+            page_queue.put_nowait(page_no)
+        # One sentinel per worker so they all exit cleanly.
+        for _ in range(self.concurrency):
+            page_queue.put_nowait(None)
 
-        async def worker(entry: LobbyistIndexEntry) -> None:
-            try:
-                outcome = await self._fetch_one(entry)
-            except Exception as exc:
-                log.exception("lobbyist fetch failed for %s", entry.registration_number)
-                outcome = LobbyistOutcome(
-                    registration_number=entry.registration_number,
-                    kind="error",
-                    error=f"{type(exc).__name__}: {exc}",
-                )
-            await outcomes.put(outcome)
+        async def page_worker() -> None:
+            while True:
+                page_no = await page_queue.get()
+                if page_no is None:
+                    return
+                try:
+                    async for outcome in self._fetch_page(page_no, pages[page_no]):
+                        await outcomes.put(outcome)
+                except Exception as exc:
+                    log.exception("page worker crashed on page %d", page_no)
+                    for entry in pages[page_no]:
+                        await outcomes.put(
+                            LobbyistOutcome(
+                                registration_number=entry.registration_number,
+                                kind="error",
+                                error=(
+                                    f"page_worker({page_no}) crashed: "
+                                    f"{type(exc).__name__}: {exc}"
+                                ),
+                            )
+                        )
 
         async def supervisor() -> None:
-            await asyncio.gather(*(worker(e) for e in work))
-            await outcomes.put(None)  # sentinel
+            await asyncio.gather(*(page_worker() for _ in range(self.concurrency)))
+            await outcomes.put(None)
 
         supervisor_task = asyncio.create_task(supervisor(), name="lobbyist-supervisor")
 
@@ -225,23 +250,73 @@ class LobbyistScraper:
             raise RuntimeError("LobbyistScraper must be used as an async context manager")
         return self._index_client
 
-    async def _fetch_one(self, entry: LobbyistIndexEntry) -> LobbyistOutcome:
-        """Spin up a fresh client, walk to the entry's page, drill the row."""
-        async with CADOClient(limiter=self._limiter, semaphore=self._semaphore) as client:
-            await self._walk_to_page(client, entry.page_no)
-            response = await client.post_back(
-                SEARCH_URL,
-                event_target=f"rptSearchResults$_ctl{entry.row_index}$lbtRegNum",
-                extra_fields=_SEARCH_ALL_FIELDS,
-            )
-            if "lobbySummary.aspx" not in str(response.url):
-                return LobbyistOutcome(
-                    registration_number=entry.registration_number,
-                    kind="error",
-                    error=f"unexpected redirect to {response.url}",
+    async def _fetch_page(
+        self, page_no: int, entries: list[LobbyistIndexEntry]
+    ) -> AsyncIterator[LobbyistOutcome]:
+        """Walk one session to ``page_no``, then drill every entry on that page.
+
+        The key insight: once we've POSTed our way to page N, the viewstate
+        on that page is reusable for every row drill from within the same
+        session, even after a previous drill has moved that session to a
+        detail page. So the per-page cost is::
+
+            1 GET + 1 SearchAll + (N-1) Next  +  K drills
+
+        instead of the old::
+
+            K * (1 GET + 1 SearchAll + (N-1) Next + 1 drill)
+        """
+        async with CADOClient(
+            limiter=self._limiter, semaphore=self._semaphore
+        ) as client:
+            await self._walk_to_page(client, page_no)
+            page_viewstate = client.last_viewstate
+            if page_viewstate is None:
+                # Should never happen; the walk just hit an HTML form.
+                for entry in entries:
+                    yield LobbyistOutcome(
+                        registration_number=entry.registration_number,
+                        kind="error",
+                        error=f"no viewstate captured at page {page_no}",
+                    )
+                return
+
+            for entry in entries:
+                # Reset the client's stored viewstate to the page-N capture
+                # before each drill so a previous drill's response (which
+                # came from lobbySummary.aspx) doesn't bleed in.
+                client._last_viewstate = page_viewstate
+                try:
+                    response = await client.post_back(
+                        SEARCH_URL,
+                        event_target=(
+                            f"rptSearchResults$_ctl{entry.row_index}$lbtRegNum"
+                        ),
+                        extra_fields=_SEARCH_ALL_FIELDS,
+                    )
+                except Exception as exc:
+                    log.exception(
+                        "drill failed for %s on page %d",
+                        entry.registration_number,
+                        page_no,
+                    )
+                    yield LobbyistOutcome(
+                        registration_number=entry.registration_number,
+                        kind="error",
+                        error=f"{type(exc).__name__}: {exc}",
+                    )
+                    continue
+                if "lobbySummary.aspx" not in str(response.url):
+                    yield LobbyistOutcome(
+                        registration_number=entry.registration_number,
+                        kind="error",
+                        error=f"unexpected redirect to {response.url}",
+                    )
+                    continue
+                self.cache.write(entry.registration_number, response.text)
+                yield LobbyistOutcome(
+                    registration_number=entry.registration_number, kind="detail"
                 )
-            self.cache.write(entry.registration_number, response.text)
-            return LobbyistOutcome(registration_number=entry.registration_number, kind="detail")
 
     async def _walk_to_page(self, client: CADOClient, page_no: int) -> None:
         """Establish ``page_no`` of the Search All results in ``client``'s session."""
