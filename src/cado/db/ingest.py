@@ -319,18 +319,16 @@ class _CompanyBuffer:
         # Explicit columns so DuckDB's CSV scanner doesn't have to sniff types
         # over the whole file. ``ingested_at`` is filled in by the SELECT.
         col_list = ", ".join(columns)
+        read_call = _read_csv_call(csv_path, columns, table)
         if table == "companies":
-            select = (
+            self.conn.execute(
+                f"INSERT INTO {table} ({col_list}, ingested_at) "
                 f"SELECT {col_list}, current_timestamp AS ingested_at "
-                f"FROM read_csv('{csv_path}', header=true, columns={_csv_columns_decl(columns, table)})"
+                f"FROM {read_call}"
             )
-            self.conn.execute(f"INSERT INTO {table} ({col_list}, ingested_at) {select}")
         else:
             self.conn.execute(
-                f"INSERT INTO {table} ({col_list}) "
-                f"SELECT {col_list} FROM read_csv("
-                f"'{csv_path}', header=true, "
-                f"columns={_csv_columns_decl(columns, table)})"
+                f"INSERT INTO {table} ({col_list}) SELECT {col_list} FROM {read_call}"
             )
 
 
@@ -373,17 +371,13 @@ class _IngestLogBuffer:
             csv_path = Path(td) / "log.csv"
             with csv_path.open("w", newline="", encoding="utf-8") as fh:
                 writer = csv.writer(fh)
-                writer.writerow(["kind", "record_key", "parsed_ok", "error", "source_html_sha256"])
+                writer.writerow(_INGEST_LOG_COLUMNS)
                 for row in self.rows:
                     writer.writerow(_serialise_csv_row(row))
+            col_list = ", ".join(_INGEST_LOG_COLUMNS)
+            read_call = _read_csv_call(csv_path, _INGEST_LOG_COLUMNS, "ingest_log")
             self.conn.execute(
-                "INSERT INTO ingest_log "
-                "(kind, record_key, parsed_ok, error, source_html_sha256) "
-                "SELECT kind, record_key, parsed_ok, error, source_html_sha256 "
-                f"FROM read_csv('{csv_path}', header=true, "
-                "columns={'kind':'VARCHAR','record_key':'VARCHAR',"
-                "'parsed_ok':'BOOLEAN','error':'VARCHAR',"
-                "'source_html_sha256':'VARCHAR'})"
+                f"INSERT INTO ingest_log ({col_list}) SELECT {col_list} FROM {read_call}"
             )
         self.rows.clear()
 
@@ -448,11 +442,10 @@ def ingest_lobbyists(
                 )
                 conn.execute("DROP TABLE _ingest_keys")
                 col_list = ", ".join(_LOBBYIST_COLUMNS)
+                read_call = _read_csv_call(csv_path, _LOBBYIST_COLUMNS, "lobbyist_registrations")
                 conn.execute(
                     f"INSERT INTO lobbyist_registrations ({col_list}, ingested_at) "
-                    f"SELECT {col_list}, current_timestamp "
-                    f"FROM read_csv('{csv_path}', header=true, "
-                    f"columns={_csv_columns_decl(_LOBBYIST_COLUMNS, 'lobbyist_registrations')})"
+                    f"SELECT {col_list}, current_timestamp FROM {read_call}"
                 )
         buf.clear()
         keys.clear()
@@ -613,6 +606,31 @@ def _csv_columns_decl(columns: list[str], table: str) -> str:
     return "{" + pairs + "}"
 
 
+def _read_csv_call(csv_path: Path, columns: list[str], table: str) -> str:
+    """Render a ``read_csv(...)`` call with the right options for our writer.
+
+    Critical: we set ``quote`` and ``escape`` explicitly to ``"``. Without
+    that, DuckDB's auto-detection samples the first 20KB; if most rows in
+    that window are unquoted (which they are -- ``csv.writer`` only quotes
+    fields containing the delimiter, quote char, or newline), it concludes
+    that ``escape`` is empty. When a later row contains ``""`` as an escaped
+    quote, the parser treats it as 'close quote, open quote' and fails with
+    'unterminated quote' on a perfectly valid RFC 4180 row.
+
+    Python's ``csv.writer`` is RFC 4180 by default: quote when needed,
+    escape internal quotes by doubling them. We mirror that on the read
+    side with ``quote='"', escape='"'``.
+    """
+    return (
+        f"read_csv("
+        f"'{csv_path}', "
+        f"header=true, "
+        f"quote='\"', escape='\"', "
+        f"columns={_csv_columns_decl(columns, table)}"
+        f")"
+    )
+
+
 # Per-table column -> SQL type. Stays in sync with ``schema.sql``.
 _COLUMN_TYPES: Final[dict[str, dict[str, str]]] = {
     "companies": {
@@ -690,7 +708,23 @@ _COLUMN_TYPES: Final[dict[str, dict[str, str]]] = {
         "raw_fields": "JSON",
         "source_html_sha256": "VARCHAR",
     },
+    "ingest_log": {
+        "kind": "VARCHAR",
+        "record_key": "VARCHAR",
+        "parsed_ok": "BOOLEAN",
+        "error": "VARCHAR",
+        "source_html_sha256": "VARCHAR",
+    },
 }
+
+
+_INGEST_LOG_COLUMNS: Final = [
+    "kind",
+    "record_key",
+    "parsed_ok",
+    "error",
+    "source_html_sha256",
+]
 
 
 # ---------------------------------------------------------------------------

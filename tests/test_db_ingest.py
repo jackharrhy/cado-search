@@ -122,6 +122,36 @@ class TestIngestMultipleCompanies:
         n = conn.execute("SELECT name FROM companies WHERE number = '2D'").fetchone()
         assert n == ("IMPERIAL TOBACCO LIMITED",)
 
+    def test_remarks_with_embedded_quotes_round_trip(
+        self, conn: duckdb.DuckDBPyConnection, cache: HtmlCache
+    ) -> None:
+        """Regression: company 11656 -- STUDIO "C" HOLDINGS LIMITED -- has
+        historical remarks containing literal double-quote characters
+        (``STUDIO "C" ...``). Earlier versions of the bulk-CSV path failed
+        on these because DuckDB's auto-detected escape character was empty,
+        causing ``""`` inside a quoted field to be interpreted as
+        "close quote, open quote" instead of an escaped quote.
+
+        The fix is to pass ``quote='"', escape='"'`` to ``read_csv``."""
+        cache.write("11656", fx("c_11656_remarks_with_quotes.html"))
+
+        results = list(ingest_companies(conn, cache))
+        assert all(r.parsed_ok for r in results), [r for r in results if not r.parsed_ok]
+
+        # The company itself ingested with its embedded quotes intact.
+        name = conn.execute("SELECT name FROM companies WHERE number = '11656'").fetchone()
+        assert name == ('STUDIO "C" HOLDINGS LIMITED',)
+
+        # And each remark round-tripped intact -- the one containing
+        # the literal ``STUDIO "C" HOLDINGS LIMITED`` substring is the
+        # actual case that broke production.
+        remarks = conn.execute(
+            "SELECT remark FROM company_historical_remarks "
+            "WHERE company_number = '11656' ORDER BY seq"
+        ).fetchall()
+        joined = " | ".join(r[0] for r in remarks)
+        assert 'STUDIO "C" HOLDINGS LIMITED' in joined
+
 
 class TestIngestLobbyist:
     def test_one_record(self, conn: duckdb.DuckDBPyConnection, lobby_cache: HtmlCache) -> None:
