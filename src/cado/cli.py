@@ -316,7 +316,16 @@ def ingest_all_cmd(
 
 @app.command()
 def serve(
-    host: Annotated[str, typer.Option(help="Interface to bind on")] = "127.0.0.1",
+    host: Annotated[
+        str,
+        typer.Option(
+            help=(
+                "Interface to bind on. Defaults to 0.0.0.0 so the server is "
+                "reachable from outside the host (matches how the Docker image "
+                "runs). Pass --host 127.0.0.1 to restrict to localhost."
+            ),
+        ),
+    ] = "0.0.0.0",
     port: Annotated[int, typer.Option(help="Port to listen on")] = 8000,
     reload: Annotated[
         bool, typer.Option("--reload", help="Auto-reload on code changes (dev)")

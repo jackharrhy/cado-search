@@ -48,7 +48,7 @@ uv run cado scrape lobbyists
 # Parse the on-disk cache into DuckDB (fast)
 uv run cado ingest all
 
-# Serve the search UI on http://127.0.0.1:8000
+# Serve the search UI on http://0.0.0.0:8000 (pass --host 127.0.0.1 to restrict to localhost)
 uv run cado serve
 ```
 
