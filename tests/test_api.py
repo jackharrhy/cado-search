@@ -12,36 +12,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from cado.api import create_app
-from cado.db import connect, ingest_one_html
-
-FIXTURES = Path(__file__).parent / "fixtures"
-COMPANIES = FIXTURES / "companies"
-
-
-def _seed_db(path: Path) -> None:
-    """Build a tiny but representative DuckDB at ``path``."""
-    conn = connect(path)
-    # 5 companies covering each type / status diversity.
-    for key, fname in [
-        ("50000", "c_50000_active_with_directors.html"),
-        ("73498", "c_73498_condo.html"),
-        ("69963", "c_69963_coop_cancelled.html"),
-        ("2D", "c_2D_extraprov_old.html"),
-        ("99000", "c_99000_extraprov_active.html"),
-    ]:
-        html = (COMPANIES / fname).read_text()
-        ingest_one_html(conn, "company", key, html)
-    # 1 lobbyist
-    lob_html = (FIXTURES / "lobbyist_summary_IHL-867-1005.html").read_text()
-    ingest_one_html(conn, "lobbyist", "IHL-867-1005", lob_html)
-    conn.close()
 
 
 @pytest.fixture
-def client(tmp_path: Path):
-    db_path = tmp_path / "cado.duckdb"
-    _seed_db(db_path)
-    app = create_app(db_path)
+def client(seeded_db: Path):
+    app = create_app(seeded_db)
     # Use as a context manager so the lifespan handler runs.
     with TestClient(app) as c:
         yield c

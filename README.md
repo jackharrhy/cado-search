@@ -1,7 +1,7 @@
 # cado
 
-Scraper, DuckDB store, and HTMX search UI for the Government of Newfoundland
-and Labrador's [Companies and Deeds Online (CADO)](https://cado.eservices.gov.nl.ca/)
+Scraper, DuckDB store, HTMX search UI, and MCP server for the Government of
+Newfoundland and Labrador's [Companies and Deeds Online (CADO)](https://cado.eservices.gov.nl.ca/)
 public registries.
 
 The upstream site is an ASP.NET WebForms app that's workable but
@@ -48,9 +48,44 @@ uv run cado scrape lobbyists
 # Parse the on-disk cache into DuckDB (fast)
 uv run cado ingest all
 
-# Serve the search UI on http://0.0.0.0:8000 (pass --host 127.0.0.1 to restrict to localhost)
+# Serve the search UI and MCP endpoint on http://0.0.0.0:8000
+# (pass --host 127.0.0.1 to restrict to localhost)
 uv run cado serve
 ```
+
+The MCP Streamable HTTP endpoint is available from the same process at
+`http://127.0.0.1:8000/mcp`. It is read-only and queries the local DuckDB
+mirror; tool calls never contact the upstream registry.
+
+## MCP API
+
+The MCP server exposes five structured, read-only tools:
+
+| Tool | Description |
+| --- | --- |
+| `search_companies` | Search companies, condominiums, and co-operatives by current name or exact number, with type/category/status filters and bounded pagination. |
+| `get_company` | Get a complete record including addresses, directors, previous names, historical remarks, and mirror provenance. |
+| `search_lobbyists` | Search lobbyist contacts, firms, or exact registration numbers with type/status filters and bounded pagination. |
+| `get_lobbyist` | Get a complete mirrored lobbyist registration and its captured raw label fields. |
+| `get_dataset_status` | Get per-registry counts, newest ingestion timestamps, source attribution, and the mirror freshness notice. |
+
+Searches return at most 50 records at a time and include `next_offset` when
+another page is available. Every detail result includes its ingestion time and
+a link to the corresponding page in this application. Because this is a
+mirror, time-sensitive or legal use should be verified against the government
+registry.
+
+To inspect the HTTP endpoint locally, start `cado serve`, launch the official
+MCP Inspector, and connect it to `http://127.0.0.1:8000/mcp`:
+
+```bash
+npx -y @modelcontextprotocol/inspector
+```
+
+The intended public URL is `https://cado.jackharrhy.dev/mcp`. Override generated
+record links and MCP transport allowlists with `CADO_PUBLIC_BASE_URL`,
+`CADO_MCP_ALLOWED_HOSTS`, and `CADO_MCP_ALLOWED_ORIGINS`; list-valued settings use
+JSON arrays in environment variables.
 
 `cado info` prints a summary of the on-disk cache and DuckDB row counts.
 
@@ -132,8 +167,10 @@ src/cado/
 │   ├── schema.sql    # DuckDB DDL
 │   ├── session.py    # connect() / init_schema()
 │   └── ingest.py     # raw HTML cache -> DuckDB
+├── query.py           # shared typed read-only query service
+├── mcp.py             # MCP tool definitions
 ├── api/
-│   ├── app.py        # FastAPI factory
+│   ├── app.py        # FastAPI factory: HTMX UI + /mcp mount
 │   ├── templates/    # Jinja2 + HTMX
 │   └── static/style.css
 └── cli.py            # `cado` Typer entry-point
@@ -150,7 +187,8 @@ ghcr.io/jackharrhy/cado:sha-<short>
 ghcr.io/jackharrhy/cado:v1.2.3      (on tags)
 ```
 
-The image defaults to running `cado serve --host 0.0.0.0 --port 8000`.
+The image defaults to running `cado serve --host 0.0.0.0 --port 8000`, serving
+both the web UI and MCP endpoint.
 Mount a volume at `/data` to persist the HTML cache and DuckDB across
 container restarts:
 
@@ -180,7 +218,7 @@ A `compose.yaml` is included for convenience: `docker compose up`.
 ## Tests
 
 ```bash
-uv run pytest                       # 93 offline tests
+uv run pytest                       # offline suite; live tests are skipped
 CADO_LIVE_TESTS=1 uv run pytest     # also runs 7 live tests against the real site
 ```
 

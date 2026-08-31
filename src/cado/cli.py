@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import sys
+from collections.abc import Iterable
 from typing import Annotated
 
 import typer
@@ -331,7 +332,7 @@ def serve(
         bool, typer.Option("--reload", help="Auto-reload on code changes (dev)")
     ] = False,
 ) -> None:
-    """Serve the HTMX search UI."""
+    """Serve the HTMX search UI and Streamable HTTP MCP endpoint."""
     import uvicorn  # noqa: PLC0415 - deferred so non-serve commands don't pay the uvicorn import cost
 
     # ``cado.api:create_app`` is a factory; uvicorn calls it.
@@ -388,7 +389,9 @@ def info() -> None:
             ("DuckDB: lobbyist_registrations", "SELECT COUNT(*) FROM lobbyist_registrations"),
             ("DuckDB: ingest_log", "SELECT COUNT(*) FROM ingest_log"),
         ]:
-            n = conn.execute(sql).fetchone()[0]
+            row = conn.execute(sql).fetchone()
+            assert row is not None
+            n = row[0]
             table.add_row(label, str(n), "")
         conn.close()
     else:
@@ -586,8 +589,11 @@ def _progress(*, total: int) -> Progress:
     )
 
 
-def _count(it: object) -> int:
-    return sum(1 for _ in it)  # type: ignore[arg-type]
+def _count(it: Iterable[object]) -> int:
+    count = 0
+    for _ in it:
+        count += 1
+    return count
 
 
 def main() -> None:

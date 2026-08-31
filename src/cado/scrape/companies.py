@@ -31,6 +31,7 @@ from contextlib import AsyncExitStack
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from types import TracebackType
 
 from ..http import CADOClient, RateLimiter
 from ..parsers import extract_company_number, parse_company_search_results
@@ -140,9 +141,14 @@ class CompanyScraper:
             self._clients.append(client)
         return self
 
-    async def __aexit__(self, *exc_info: object) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
         if self._stack is not None:
-            await self._stack.__aexit__(*exc_info)
+            await self._stack.__aexit__(exc_type, exc, tb)
             self._stack = None
         self._clients.clear()
 

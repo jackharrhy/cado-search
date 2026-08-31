@@ -22,6 +22,7 @@ dependencies = [
     "rich>=15",
     "tenacity>=9",
     "aiofiles>=25",
+    "mcp>=2,<3",
 ]
 
 [project.scripts]

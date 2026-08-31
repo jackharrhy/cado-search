@@ -83,7 +83,7 @@ def _collect_all_labels(soup: BeautifulSoup) -> dict[str, str]:
     for span in soup.find_all(id=re.compile(r"^lbl")):
         assert isinstance(span, Tag)
         sid = span.get("id")
-        if not sid:
+        if not isinstance(sid, str) or not sid:
             continue
         text = span.get_text(separator="\n")
         # Collapse runs of spaces/tabs per line, strip surrounding whitespace.
@@ -134,7 +134,10 @@ def parse_lobbyist_search_results(html: str) -> list[LobbyistSearchHit]:
     out: list[LobbyistSearchHit] = []
     for anchor in soup.find_all("a", id=_ROW_REG_RX):
         assert isinstance(anchor, Tag)
-        m = _ROW_REG_RX.search(anchor.get("id", ""))
+        anchor_id = anchor.get("id")
+        if not isinstance(anchor_id, str):
+            continue
+        m = _ROW_REG_RX.search(anchor_id)
         if not m:
             continue
         row = int(m.group(1))

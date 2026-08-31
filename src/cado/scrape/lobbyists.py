@@ -31,6 +31,7 @@ import logging
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from types import TracebackType
 
 from ..http import CADOClient, RateLimiter
 from ..models import LobbyistSearchHit
@@ -108,9 +109,14 @@ class LobbyistScraper:
         await self._index_client.__aenter__()
         return self
 
-    async def __aexit__(self, *exc: object) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
         if self._index_client is not None:
-            await self._index_client.__aexit__(*exc)
+            await self._index_client.__aexit__(exc_type, exc, tb)
             self._index_client = None
 
     # ---- public API ---------------------------------------------------

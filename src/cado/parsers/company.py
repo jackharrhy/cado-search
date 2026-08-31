@@ -286,7 +286,10 @@ def parse_company_search_results(
     hits: list[CompanySearchHit] = []
     for anchor in table.find_all("a", id=_ROW_NUM_RX):
         assert isinstance(anchor, Tag)
-        m = _ROW_NUM_RX.search(anchor.get("id", ""))
+        anchor_id = anchor.get("id")
+        if not isinstance(anchor_id, str):
+            continue
+        m = _ROW_NUM_RX.search(anchor_id)
         if not m:
             continue
         row_index = int(m.group(1))
