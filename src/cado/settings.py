@@ -32,7 +32,7 @@ class Settings(BaseSettings):
 
     base_url: str = "https://cado.eservices.gov.nl.ca"
     user_agent: str = (
-        "cado-scraper/0.1 (+https://github.com/jackharrhy/cado; "
+        "cado-scraper/0.1 (+https://github.com/jackharrhy/cado-search; "
         "public-data archival; contact: me@jackharrhy.com)"
     )
 

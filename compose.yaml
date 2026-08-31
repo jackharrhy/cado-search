@@ -8,7 +8,7 @@
 
 services:
   snapshot-ready:
-    image: ${CADO_IMAGE:-ghcr.io/jackharrhy/cado:latest}
+    image: ${CADO_IMAGE:-ghcr.io/jackharrhy/cado-search:latest}
     command: ["check"]
     restart: "no"
     volumes:
@@ -17,7 +17,7 @@ services:
       CADO_DATA_DIR: /data
 
   cado:
-    image: ${CADO_IMAGE:-ghcr.io/jackharrhy/cado:latest}
+    image: ${CADO_IMAGE:-ghcr.io/jackharrhy/cado-search:latest}
     # Uncomment to build from the local Dockerfile instead of pulling.
     # build: .
     restart: unless-stopped
@@ -36,7 +36,7 @@ services:
       # CADO_REQUESTS_PER_SECOND: "20"
 
   refresh:
-    image: ${CADO_IMAGE:-ghcr.io/jackharrhy/cado:latest}
+    image: ${CADO_IMAGE:-ghcr.io/jackharrhy/cado-search:latest}
     profiles: ["tools"]
     command: ["refresh"]
     restart: "no"
