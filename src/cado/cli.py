@@ -8,6 +8,7 @@ import logging
 import shutil
 import sys
 from collections.abc import Iterable
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -408,7 +409,7 @@ def refresh(
                 rate=rate,
                 max_count_drop_fraction=max_count_drop,
                 on_workspace=lambda manifest: console.print(
-                    f"[cyan]Snapshot {manifest.snapshot_id}; state={manifest.status}[/]"
+                    f"[cyan]Snapshot {manifest.snapshot_id}[/]"
                 ),
                 on_company=company_progress,
                 on_lobbyist=lobbyist_progress,
@@ -571,29 +572,35 @@ def _confirm(prompt: str, *, assume_yes: bool) -> bool:
     return typer.confirm(prompt, default=False)
 
 
-def _human_bytes(n: int) -> str:
+def _human_bytes(size: int) -> str:
+    value = float(size)
     for unit in ("B", "KB", "MB", "GB"):
-        if n < 1024:
-            return f"{n:.1f}{unit}"
-        n /= 1024  # type: ignore[assignment]
-    return f"{n:.1f}TB"
+        if value < 1024:
+            return f"{value:.1f}{unit}"
+        value /= 1024
+    return f"{value:.1f}TB"
 
 
-def _dir_summary(path: object) -> tuple[int, int]:
+def _dir_summary(path: Path) -> tuple[int, int]:
     """Return ``(file_count, total_bytes)`` under ``path`` (recursive)."""
-    from pathlib import Path  # noqa: PLC0415
-
-    p = Path(str(path))
-    if not p.exists():
+    if not path.exists():
         return 0, 0
     files = 0
     size = 0
-    for entry in p.rglob("*"):
+    for entry in path.rglob("*"):
         if entry.is_file():
             files += 1
             with contextlib.suppress(OSError):
                 size += entry.stat().st_size
     return files, size
+
+
+def _cache_roots() -> tuple[Path, ...]:
+    return (
+        settings.html_cache_dir,
+        settings.data_dir / "refresh",
+        settings.data_dir / "snapshots",
+    )
 
 
 def _delete_duckdb() -> int:
@@ -615,11 +622,7 @@ def _delete_duckdb() -> int:
 
 def _delete_cache() -> tuple[int, int]:
     """Remove legacy, staged, and archived raw HTML. Returns files and bytes."""
-    roots = [
-        settings.html_cache_dir,
-        settings.data_dir / "refresh",
-        settings.data_dir / "snapshots",
-    ]
+    roots = _cache_roots()
     summaries = [_dir_summary(path) for path in roots]
     files = sum(item[0] for item in summaries)
     size = sum(item[1] for item in summaries)
@@ -630,11 +633,7 @@ def _delete_cache() -> tuple[int, int]:
 
 
 def _all_cache_summary() -> tuple[int, int]:
-    summaries = [
-        _dir_summary(settings.html_cache_dir),
-        _dir_summary(settings.data_dir / "refresh"),
-        _dir_summary(settings.data_dir / "snapshots"),
-    ]
+    summaries = [_dir_summary(path) for path in _cache_roots()]
     return sum(item[0] for item in summaries), sum(item[1] for item in summaries)
 
 

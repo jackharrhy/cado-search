@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import gzip
 from pathlib import Path
 
 import pytest
@@ -74,10 +73,10 @@ class TestHtmlCache:
     ) -> None:
         cache.write("25166", "old")
 
-        def fail_write(self: gzip.GzipFile, data: bytes) -> int:
+        def fail_write(self: Path, data: bytes) -> int:
             raise OSError("simulated disk failure")
 
-        monkeypatch.setattr(gzip.GzipFile, "write", fail_write)
+        monkeypatch.setattr(Path, "write_bytes", fail_write)
         with pytest.raises(OSError, match="simulated"):
             cache.write("25166", "new")
         assert cache.read("25166") == "old"

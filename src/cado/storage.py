@@ -10,14 +10,23 @@ from __future__ import annotations
 
 import gzip
 import json
-import os
-import tempfile
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from .settings import settings
+
+
+def replace_bytes(path: Path, content: bytes) -> None:
+    """Write bytes beside ``path``, then atomically replace it."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.tmp")
+    try:
+        temporary.write_bytes(content)
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def _shard(name: str) -> str:
@@ -83,24 +92,10 @@ class HtmlCache:
 
     def write(self, key: str, html: str, *, kind: str = "detail") -> Path:
         path = self.path_for(key, kind=kind)
-        path.parent.mkdir(parents=True, exist_ok=True)
         # Gzip with mtime=0 and a fixed compression level so the same input
         # produces a byte-identical file — keeps diffs / hashes stable.
-        fd, temporary_name = tempfile.mkstemp(
-            dir=path.parent,
-            prefix=f".{path.name}.",
-            suffix=".tmp",
-        )
-        temporary_path = Path(temporary_name)
-        try:
-            with (
-                os.fdopen(fd, "wb") as raw,
-                gzip.GzipFile(fileobj=raw, mode="wb", compresslevel=6, mtime=0) as fh,
-            ):
-                fh.write(html.encode("utf-8"))
-            os.replace(temporary_path, path)
-        finally:
-            temporary_path.unlink(missing_ok=True)
+        compressed = gzip.compress(html.encode(), compresslevel=6, mtime=0)
+        replace_bytes(path, compressed)
         return path
 
     def read(self, key: str, *, kind: str = "detail") -> str:
@@ -163,18 +158,10 @@ class HtmlCache:
         }
         self.root.mkdir(parents=True, exist_ok=True)
         encoded = (json.dumps(payload, separators=(",", ":")) + "\n").encode()
-        fd = os.open(
-            self.completion_log_path,
-            os.O_APPEND | os.O_CREAT | os.O_WRONLY,
-            0o644,
-        )
-        try:
-            view = memoryview(encoded)
-            while view:
-                written = os.write(fd, view)
-                view = view[written:]
-        finally:
-            os.close(fd)
+        # Binary append is one small write. If the process dies mid-write, the
+        # reader ignores that malformed line and retries the seed.
+        with self.completion_log_path.open("ab", buffering=0) as fh:
+            fh.write(encoded)
         self._completed_outcomes[key] = outcome
 
     def _read_completed_outcomes(self) -> dict[str, str]:

@@ -73,7 +73,6 @@ def run_refresh(
         )
         if workspace.manifest.source_fetched_at is None:
             workspace.manifest.source_fetched_at = datetime.now(UTC)
-        workspace.manifest.status = "fetched"
         workspace.save()
         report = build_snapshot(
             workspace,
@@ -146,7 +145,6 @@ def _ensure_lobbyist_fetch(
     if errors:
         raise SnapshotError(f"lobbyist fetch has {errors} error(s); rerun to retry missing details")
     workspace.manifest.lobbyist_expected_count = total
-    workspace.manifest.lobbyist_index_count = count
     workspace.manifest.lobbyist_fetch_complete = True
     workspace.save()
 

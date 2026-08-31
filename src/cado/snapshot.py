@@ -3,22 +3,19 @@
 from __future__ import annotations
 
 import fcntl
-import os
 import shutil
-import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal
 from uuid import uuid4
 
 import duckdb
 from pydantic import BaseModel, ConfigDict
 
 from .db import connect, ingest_companies, ingest_lobbyists
-from .storage import HtmlCache
+from .storage import HtmlCache, replace_bytes
 
 SCHEMA_VERSION = 2
 REQUIRED_TABLES = {
@@ -41,24 +38,18 @@ class SnapshotValidationError(SnapshotError):
 
 
 class SnapshotManifest(BaseModel):
-    """Durable progress and provenance for one full upstream fetch."""
+    """The small amount of state needed to resume an upstream fetch."""
 
     model_config = ConfigDict(extra="forbid")
 
     snapshot_id: str
-    status: Literal["fetching", "fetched", "built", "published"] = "fetching"
     fetch_started_at: datetime
     source_fetched_at: datetime | None = None
-    snapshot_built_at: datetime | None = None
-    published_at: datetime | None = None
     company_start: int
     company_stop: int
     company_fetch_complete: bool = False
     lobbyist_fetch_complete: bool = False
     lobbyist_expected_count: int | None = None
-    lobbyist_index_count: int | None = None
-    company_cache_count: int | None = None
-    lobbyist_cache_count: int | None = None
 
     @classmethod
     def create(cls, *, company_start: int, company_stop: int) -> SnapshotManifest:
@@ -97,7 +88,10 @@ class SnapshotWorkspace:
         return HtmlCache(root=self.html_root, registry="lobbyists")
 
     def save(self) -> None:
-        _atomic_write_text(self.manifest_path, self.manifest.model_dump_json(indent=2) + "\n")
+        replace_bytes(
+            self.manifest_path,
+            (self.manifest.model_dump_json(indent=2) + "\n").encode(),
+        )
 
 
 @dataclass(slots=True, frozen=True)
@@ -110,6 +104,23 @@ class SnapshotReport:
     company_cache_count: int
     lobbyist_cache_count: int
     snapshot_built_at: datetime
+
+
+@dataclass(slots=True, frozen=True)
+class SnapshotMetadata:
+    """Provenance read from a built or published DuckDB snapshot."""
+
+    schema_version: int
+    snapshot_id: str
+    fetch_started_at: datetime
+    source_fetched_at: datetime
+    snapshot_built_at: datetime
+    published_at: datetime | None
+    company_start: int
+    company_stop: int
+    lobbyist_expected_count: int | None
+    company_cache_count: int
+    lobbyist_cache_count: int
 
 
 @dataclass(slots=True, frozen=True)
@@ -132,25 +143,22 @@ def open_workspace(
     manifest_path = root / "manifest.json"
     if manifest_path.exists():
         manifest = SnapshotManifest.model_validate_json(manifest_path.read_text())
-        if manifest.status == "published":
-            _archive_workspace(data_dir, root, manifest.snapshot_id)
-        else:
-            if manifest.company_start != company_start or company_stop < manifest.company_stop:
+        if manifest.company_start != company_start or company_stop < manifest.company_stop:
+            raise SnapshotError(
+                "an unfinished refresh uses company range "
+                f"[{manifest.company_start}, {manifest.company_stop}); resume with that "
+                "start and an equal or larger stop, or run `cado clean refresh --yes`"
+            )
+        if company_stop > manifest.company_stop:
+            if manifest.company_fetch_complete:
                 raise SnapshotError(
-                    "an unfinished refresh uses company range "
-                    f"[{manifest.company_start}, {manifest.company_stop}); resume with that "
-                    "start and an equal or larger stop, or run `cado clean refresh --yes`"
+                    "the completed company fetch cannot be extended; start a new refresh"
                 )
-            if company_stop > manifest.company_stop:
-                if manifest.company_fetch_complete:
-                    raise SnapshotError(
-                        "the completed company fetch cannot be extended; start a new refresh"
-                    )
-                manifest.company_stop = company_stop
-                workspace = SnapshotWorkspace(root=root, manifest=manifest)
-                workspace.save()
-                return workspace
-            return SnapshotWorkspace(root=root, manifest=manifest)
+            manifest.company_stop = company_stop
+            workspace = SnapshotWorkspace(root=root, manifest=manifest)
+            workspace.save()
+            return workspace
+        return SnapshotWorkspace(root=root, manifest=manifest)
     elif root.exists() and any(root.iterdir()):
         raise SnapshotError(
             f"refresh workspace {root} has data but no valid manifest; inspect it and run "
@@ -230,11 +238,6 @@ def build_snapshot(
     else:
         conn.close()
 
-    manifest.status = "built"
-    manifest.snapshot_built_at = contents.built_at
-    manifest.company_cache_count = company_cache_count
-    manifest.lobbyist_cache_count = lobbyist_cache_count
-    workspace.save()
     return SnapshotReport(
         snapshot_id=manifest.snapshot_id,
         company_count=contents.by_company_type.get("Company", 0),
@@ -360,12 +363,9 @@ def publish_snapshot(
     previous_path = live_db_path.with_name(f"{live_db_path.stem}.previous{live_db_path.suffix}")
     if live_db_path.exists():
         _atomic_copy(live_db_path, previous_path)
-    os.replace(candidate, live_db_path)
+    candidate.replace(live_db_path)
     validate_database(live_db_path, require_published=True)
 
-    workspace.manifest.status = "published"
-    workspace.manifest.published_at = published_at
-    workspace.save()
     _archive_workspace(
         live_db_path.parent,
         workspace.root,
@@ -375,7 +375,7 @@ def publish_snapshot(
     return published_at
 
 
-def validate_database(path: Path, *, require_published: bool = True) -> SnapshotManifest:
+def validate_database(path: Path, *, require_published: bool = True) -> SnapshotMetadata:
     """Open a database read-only and verify its schema and snapshot metadata."""
     if not path.is_file():
         raise SnapshotValidationError(f"DuckDB snapshot does not exist: {path}")
@@ -411,17 +411,15 @@ def validate_database(path: Path, *, require_published: bool = True) -> Snapshot
             raise SnapshotValidationError("DuckDB snapshot contains an empty registry")
     finally:
         conn.close()
-    return SnapshotManifest(
+    return SnapshotMetadata(
+        schema_version=int(row[0]),
         snapshot_id=str(row[1]),
-        status="published" if row[5] is not None else "built",
         fetch_started_at=row[2],
         source_fetched_at=row[3],
         snapshot_built_at=row[4],
         published_at=row[5],
         company_start=int(row[6]),
         company_stop=int(row[7]),
-        company_fetch_complete=True,
-        lobbyist_fetch_complete=True,
         lobbyist_expected_count=row[8],
         company_cache_count=int(row[9]),
         lobbyist_cache_count=int(row[10]),
@@ -469,7 +467,7 @@ def _archive_workspace(data_dir: Path, root: Path, snapshot_id: str) -> Path:
         if root.exists():
             raise SnapshotError(f"snapshot archive already exists: {archive}")
         return archive
-    os.replace(root, archive)
+    root.replace(archive)
     return archive
 
 
@@ -482,49 +480,19 @@ def _prune_archives(data_dir: Path, *, keep: int) -> None:
         return
     archives = sorted(
         (path for path in snapshots_dir.iterdir() if path.is_dir()),
-        key=_archive_sort_key,
+        key=lambda path: path.stat().st_mtime_ns,
         reverse=True,
     )
     for obsolete in archives[keep:]:
         shutil.rmtree(obsolete)
 
 
-def _archive_sort_key(path: Path) -> float:
-    try:
-        manifest = SnapshotManifest.model_validate_json((path / "manifest.json").read_text())
-    except (OSError, ValueError):
-        return path.stat().st_mtime
-    if manifest.published_at is None:
-        return path.stat().st_mtime
-    return manifest.published_at.timestamp()
-
-
-def _atomic_write_text(path: Path, value: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, temporary_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
-    temporary = Path(temporary_name)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            fh.write(value)
-            fh.flush()
-            os.fsync(fh.fileno())
-        os.replace(temporary, path)
-    finally:
-        temporary.unlink(missing_ok=True)
-
-
 def _atomic_copy(source: Path, destination: Path) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
-    fd, temporary_name = tempfile.mkstemp(
-        dir=destination.parent,
-        prefix=f".{destination.name}.",
-        suffix=".tmp",
-    )
-    os.close(fd)
-    temporary = Path(temporary_name)
+    temporary = destination.with_name(f".{destination.name}.tmp")
     try:
         shutil.copy2(source, temporary)
-        os.replace(temporary, destination)
+        temporary.replace(destination)
     finally:
         temporary.unlink(missing_ok=True)
 

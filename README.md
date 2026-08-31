@@ -65,13 +65,13 @@ The first start needs a snapshot:
 ```bash
 docker compose pull
 docker compose run --rm refresh       # first 2-3 hour fetch; safe to rerun
-docker compose up -d                  # preflight check gates server startup
+docker compose up -d
 docker compose ps
 ```
 
-Compose gives the server read-only access to `/data`. Only the refresh job can
-write there. The readiness check stops the server from starting with a missing
-or invalid snapshot.
+Both services use the same image and data volume. `cado` is the server and can
+only read the volume; `refresh` is a one-shot job that can write it. The server
+checks the snapshot when it starts and exits if it is missing or invalid.
 
 For public use, put port 8000 behind a TLS proxy. Set
 `CADO_PUBLIC_BASE_URL` for generated links. The MCP host and origin allowlists
@@ -92,7 +92,7 @@ job on the same image tag.
 After an update:
 
 ```bash
-docker compose run --rm snapshot-ready
+docker compose run --rm cado check
 curl --fail http://127.0.0.1:8000/health/ready
 ```
 

@@ -37,9 +37,7 @@ def _ready_workspace(
     workspace.manifest.company_fetch_complete = True
     workspace.manifest.lobbyist_fetch_complete = True
     workspace.manifest.lobbyist_expected_count = 1
-    workspace.manifest.lobbyist_index_count = 1
     workspace.manifest.source_fetched_at = datetime.now(UTC)
-    workspace.manifest.status = "fetched"
     workspace.save()
     return workspace
 

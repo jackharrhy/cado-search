@@ -1,7 +1,7 @@
 [project]
 name = "cado"
 version = "0.1.0"
-description = "Scraper, DuckDB store, and HTMX search UI for Newfoundland's CADO registries"
+description = "Search UI and MCP server for a local snapshot of Newfoundland and Labrador's CADO registries"
 readme = "README.md"
 authors = [
     { name = "Jack Arthur Harrhy", email = "me@jackharrhy.com" }
@@ -17,11 +17,9 @@ dependencies = [
     "fastapi>=0.136",
     "uvicorn[standard]>=0.47",
     "jinja2>=3.1",
-    "python-multipart>=0.0.29",
     "typer>=0.25",
     "rich>=15",
     "tenacity>=9",
-    "aiofiles>=25",
     "mcp>=2,<3",
 ]
 
@@ -40,7 +38,6 @@ dev = [
     "ruff>=0.15",
     "mypy>=2.1",
     "types-beautifulsoup4>=4.12",
-    "types-aiofiles>=25",
 ]
 
 [tool.ruff]

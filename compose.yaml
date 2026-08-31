@@ -7,15 +7,6 @@
 #   docker compose up -d             # start only after a snapshot exists
 
 services:
-  snapshot-ready:
-    image: ${CADO_IMAGE:-ghcr.io/jackharrhy/cado-search:latest}
-    command: ["check"]
-    restart: "no"
-    volumes:
-      - cado-data:/data:ro
-    environment:
-      CADO_DATA_DIR: /data
-
   cado:
     image: ${CADO_IMAGE:-ghcr.io/jackharrhy/cado-search:latest}
     # Uncomment to build from the local Dockerfile instead of pulling.
@@ -23,11 +14,7 @@ services:
     restart: unless-stopped
     ports:
       - "${CADO_PORT:-8000}:8000"
-    depends_on:
-      snapshot-ready:
-        condition: service_completed_successfully
     volumes:
-      # The public process cannot mutate or lock the published snapshot as a writer.
       - cado-data:/data:ro
     environment:
       # Override any setting via env vars; see src/cado/settings.py.
@@ -35,17 +22,15 @@ services:
       # CADO_MAX_CONCURRENCY: "24"
       # CADO_REQUESTS_PER_SECOND: "20"
 
+  # Same image, but this one-shot job is the only process allowed to write data.
   refresh:
     image: ${CADO_IMAGE:-ghcr.io/jackharrhy/cado-search:latest}
     profiles: ["tools"]
     command: ["refresh"]
-    restart: "no"
     volumes:
       - cado-data:/data
     environment:
       CADO_DATA_DIR: /data
-      # CADO_MAX_CONCURRENCY: "24"
-      # CADO_REQUESTS_PER_SECOND: "20"
 
 volumes:
   cado-data:
