@@ -7,6 +7,7 @@ covered by ``test_scrape_*`` and ``test_live_*``.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -75,6 +76,47 @@ def test_ingest_companies_end_to_end(runner: CliRunner, _isolated_data_dir: Path
     info = runner.invoke(fresh_app, ["info"])
     assert info.exit_code == 0
     assert "DuckDB: companies" in info.output
+
+
+def test_refresh_publishes_a_ready_staged_snapshot(
+    runner: CliRunner, _isolated_data_dir: Path
+) -> None:
+    from cado.snapshot import open_workspace
+
+    workspace = open_workspace(_isolated_data_dir, company_start=1, company_stop=105_000)
+    workspace.company_cache().write(
+        "50000",
+        (FIXTURES / "companies/c_50000_active_with_directors.html").read_text(),
+    )
+    workspace.lobbyist_cache().write(
+        "IHL-867-1005",
+        (FIXTURES / "lobbyist_summary_IHL-867-1005.html").read_text(),
+    )
+    workspace.manifest.company_fetch_complete = True
+    workspace.manifest.lobbyist_fetch_complete = True
+    workspace.manifest.lobbyist_expected_count = 1
+    workspace.manifest.source_fetched_at = datetime.now(UTC)
+    workspace.manifest.status = "fetched"
+    workspace.save()
+
+    from cado.cli import app as fresh_app
+
+    result = runner.invoke(fresh_app, ["refresh", "--concurrency", "1", "--rate", "1"])
+    assert result.exit_code == 0, result.output
+    assert "Published snapshot" in result.output
+    check = runner.invoke(fresh_app, ["check"])
+    assert check.exit_code == 0
+    assert "is ready" in check.output
+
+
+def test_ingest_parse_error_exits_nonzero(runner: CliRunner, _isolated_data_dir: Path) -> None:
+    cache = HtmlCache(registry="companies")
+    cache.write("broken", "<html>not a company</html>")
+    from cado.cli import app as fresh_app
+
+    result = runner.invoke(fresh_app, ["ingest", "companies"])
+    assert result.exit_code == 1
+    assert "1 errors" in result.output
 
 
 # ---------------------------------------------------------------------------

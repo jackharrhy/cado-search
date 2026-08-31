@@ -19,12 +19,12 @@
   <tbody>
     {% for row in rows %}
     <tr>
-      <td><a href="/lobbyist/{{ row[0] }}">{{ row[0] }}</a></td>
-      <td>{{ row[1] or "" }}</td>
-      <td>{{ row[2] or "" }}</td>
-      <td>{{ row[3] or "" }}</td>
-      <td>{{ row[4] or "" }}</td>
-      <td>{{ row[5] or "" }}</td>
+      <td><a href="/lobbyist/{{ row.registration_number }}">{{ row.registration_number }}</a></td>
+      <td>{{ row.contact_name or "" }}</td>
+      <td>{{ row.firm_name or "" }}</td>
+      <td>{{ row.lobbyist_type or "" }}</td>
+      <td>{{ row.status or "" }}</td>
+      <td>{{ row.effective_date or "" }}</td>
     </tr>
     {% endfor %}
   </tbody>

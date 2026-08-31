@@ -13,15 +13,16 @@ from contextlib import asynccontextmanager
 from importlib import resources
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from mcp.server.transport_security import TransportSecuritySettings
 
 from ..mcp import create_mcp_server
-from ..query import CompanyRecord, LobbyistRecord, RegistryQueryService
+from ..query import RegistryQueryService
 from ..settings import settings
+from ..snapshot import SnapshotValidationError, validate_database
 
 log = logging.getLogger(__name__)
 
@@ -58,8 +59,12 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         if not resolved_path.exists():
             raise RuntimeError(
-                f"DuckDB at {resolved_path} does not exist yet. Run `cado ingest` first."
+                f"DuckDB at {resolved_path} does not exist yet. Run `cado refresh` first."
             )
+        try:
+            validate_database(resolved_path)
+        except SnapshotValidationError as exc:
+            raise RuntimeError(f"DuckDB snapshot is not ready: {exc}") from exc
         async with mcp.session_manager.run():
             yield
 
@@ -85,6 +90,15 @@ def create_app(db_path: Path | None = None) -> FastAPI:
 
     # ---- pages ---------------------------------------------------------
 
+    @app.get("/health/live", include_in_schema=False)
+    def health_live() -> dict[str, str]:
+        return {"status": "ok"}
+
+    @app.get("/health/ready", include_in_schema=False)
+    def health_ready() -> dict[str, str]:
+        manifest = validate_database(resolved_path)
+        return {"status": "ok", "snapshot_id": manifest.snapshot_id}
+
     @app.get("/", response_class=HTMLResponse)
     def index(
         request: Request,
@@ -97,7 +111,11 @@ def create_app(db_path: Path | None = None) -> FastAPI:
             "cooperatives": status.cooperatives.count,
             "lobbyists": status.lobbyists.count,
         }
-        return templates.TemplateResponse(request, "index.html", {"counts": counts})
+        return templates.TemplateResponse(
+            request,
+            "index.html",
+            {"counts": counts, "snapshot": status},
+        )
 
     # ---- search endpoint (HTMX target) --------------------------------
 
@@ -116,23 +134,10 @@ def create_app(db_path: Path | None = None) -> FastAPI:
             status=status or None,
             limit=limit,
         )
-        rows = [
-            (
-                item.number,
-                item.name,
-                item.corporation_type,
-                item.status,
-                item.category,
-                item.incorporation_date,
-                item.city,
-                item.province_state,
-            )
-            for item in page.items
-        ]
         return templates.TemplateResponse(
             request,
             "_company_results.html",
-            {"rows": rows, "total": page.total, "limit": limit, "q": q},
+            {"rows": page.items, "total": page.total, "limit": limit, "q": q},
         )
 
     @app.get("/search/lobbyists", response_class=HTMLResponse)
@@ -143,21 +148,10 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         query_service: RegistryQueryService = Depends(get_service),
     ) -> HTMLResponse:
         page = query_service.search_lobbyists(query=q, limit=limit)
-        rows = [
-            (
-                item.registration_number,
-                item.contact_name,
-                item.firm_name,
-                item.lobbyist_type,
-                item.status,
-                item.effective_date,
-            )
-            for item in page.items
-        ]
         return templates.TemplateResponse(
             request,
             "_lobbyist_results.html",
-            {"rows": rows, "total": page.total, "limit": limit, "q": q},
+            {"rows": page.items, "total": page.total, "limit": limit, "q": q},
         )
 
     # ---- detail pages -------------------------------------------------
@@ -170,21 +164,12 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     ) -> HTMLResponse:
         company = query_service.get_company(number)
         if company is None:
-            return HTMLResponse(
-                f"<h1>404</h1><p>No company with number {number!r}.</p>",
-                status_code=404,
-            )
-        company_dict = _company_template_record(company)
+            raise HTTPException(status_code=404, detail="Company record not found")
         return templates.TemplateResponse(
             request,
             "company_detail.html",
             {
-                "c": company_dict,
-                "directors": [director.full_name for director in company.directors],
-                "previous_names": [
-                    (previous.name, previous.effective_date) for previous in company.previous_names
-                ],
-                "remarks": company.historical_remarks,
+                "c": company,
             },
         )
 
@@ -196,41 +181,14 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     ) -> HTMLResponse:
         registration = query_service.get_lobbyist(registration_number)
         if registration is None:
-            return HTMLResponse(
-                f"<h1>404</h1><p>No lobbyist with registration {registration_number!r}.</p>",
-                status_code=404,
-            )
+            raise HTTPException(status_code=404, detail="Lobbyist registration not found")
         return templates.TemplateResponse(
             request,
             "lobbyist_detail.html",
-            {"r": _lobbyist_template_record(registration)},
+            {"r": registration},
         )
 
     # Keep the MCP application's built-in /mcp route exact. This catch-all
     # mount must remain last so the HTML, static, and documentation routes win.
     app.mount("/", mcp_app, name="mcp")
     return app
-
-
-def _company_template_record(company: CompanyRecord) -> dict[str, object]:
-    data = company.model_dump()
-    registered = data.pop("registered_office")
-    mailing = data.pop("mailing_address")
-    data.pop("mailing_same_as_registered")
-    for key, value in registered.items():
-        data[f"ro_{key}"] = value
-    for key, value in mailing.items():
-        data[f"ma_{key}"] = value
-    data["ma_same_as_registered"] = company.mailing_same_as_registered
-    return data
-
-
-def _lobbyist_template_record(registration: LobbyistRecord) -> dict[str, object]:
-    data = registration.model_dump()
-    contact = data.pop("contact_address")
-    firm = data.pop("firm_address")
-    for key, value in contact.items():
-        data[f"contact_{key}"] = value
-    for key, value in firm.items():
-        data[f"firm_{key}"] = value
-    return data

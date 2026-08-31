@@ -33,63 +33,65 @@
   </section>
 
   <section class="addresses">
+    {% set ro = c.registered_office %}
+    {% set ma = c.mailing_address %}
     <div>
       <h3>Registered office</h3>
       <address>
-        {{ c.ro_contact or "" }}{% if c.ro_contact %}<br>{% endif %}
-        {{ c.ro_line1 or "" }}{% if c.ro_line1 %}<br>{% endif %}
-        {{ c.ro_line2 or "" }}{% if c.ro_line2 %}<br>{% endif %}
-        {{ c.ro_line3 or "" }}{% if c.ro_line3 %}<br>{% endif %}
-        {{ c.ro_city or "" }}{% if c.ro_city %}, {% endif %}{{ c.ro_province_state or "" }}<br>
-        {{ c.ro_country or "" }}{% if c.ro_country %}<br>{% endif %}
-        {{ c.ro_postal_zip or "" }}
+        {{ ro.contact or "" }}{% if ro.contact %}<br>{% endif %}
+        {{ ro.line1 or "" }}{% if ro.line1 %}<br>{% endif %}
+        {{ ro.line2 or "" }}{% if ro.line2 %}<br>{% endif %}
+        {{ ro.line3 or "" }}{% if ro.line3 %}<br>{% endif %}
+        {{ ro.city or "" }}{% if ro.city %}, {% endif %}{{ ro.province_state or "" }}<br>
+        {{ ro.country or "" }}{% if ro.country %}<br>{% endif %}
+        {{ ro.postal_zip or "" }}
       </address>
     </div>
     <div>
-      <h3>Mailing address {% if c.ma_same_as_registered %}<small>(same as registered)</small>{% endif %}</h3>
+      <h3>Mailing address {% if c.mailing_same_as_registered %}<small>(same as registered)</small>{% endif %}</h3>
       <address>
-        {{ c.ma_contact or "" }}{% if c.ma_contact %}<br>{% endif %}
-        {{ c.ma_line1 or "" }}{% if c.ma_line1 %}<br>{% endif %}
-        {{ c.ma_line2 or "" }}{% if c.ma_line2 %}<br>{% endif %}
-        {{ c.ma_line3 or "" }}{% if c.ma_line3 %}<br>{% endif %}
-        {{ c.ma_city or "" }}{% if c.ma_city %}, {% endif %}{{ c.ma_province_state or "" }}<br>
-        {{ c.ma_country or "" }}{% if c.ma_country %}<br>{% endif %}
-        {{ c.ma_postal_zip or "" }}
+        {{ ma.contact or "" }}{% if ma.contact %}<br>{% endif %}
+        {{ ma.line1 or "" }}{% if ma.line1 %}<br>{% endif %}
+        {{ ma.line2 or "" }}{% if ma.line2 %}<br>{% endif %}
+        {{ ma.line3 or "" }}{% if ma.line3 %}<br>{% endif %}
+        {{ ma.city or "" }}{% if ma.city %}, {% endif %}{{ ma.province_state or "" }}<br>
+        {{ ma.country or "" }}{% if ma.country %}<br>{% endif %}
+        {{ ma.postal_zip or "" }}
       </address>
     </div>
   </section>
 
-  {% if directors %}
+  {% if c.directors %}
   <section>
-    <h3>Current directors ({{ directors|length }})</h3>
+    <h3>Current directors ({{ c.directors|length }})</h3>
     <ul class="director-list">
-      {% for d in directors %}<li>{{ d }}</li>{% endfor %}
+      {% for d in c.directors %}<li>{{ d.full_name }}</li>{% endfor %}
     </ul>
   </section>
   {% endif %}
 
-  {% if previous_names %}
+  {% if c.previous_names %}
   <section>
     <h3>Previous names</h3>
     <ul>
-      {% for name, eff in previous_names %}
-      <li>{{ name }}{% if eff %} <span class="muted">— effective {{ eff }}</span>{% endif %}</li>
+      {% for previous in c.previous_names %}
+      <li>{{ previous.name }}{% if previous.effective_date %} <span class="muted">— effective {{ previous.effective_date }}</span>{% endif %}</li>
       {% endfor %}
     </ul>
   </section>
   {% endif %}
 
-  {% if remarks %}
+  {% if c.historical_remarks %}
   <section>
     <h3>Historical remarks</h3>
     <ul>
-      {% for r in remarks %}<li>{{ r }}</li>{% endfor %}
+      {% for remark in c.historical_remarks %}<li>{{ remark }}</li>{% endfor %}
     </ul>
   </section>
   {% endif %}
 
   <footer class="record-footer">
-    <p>Ingested {{ c.ingested_at }}. Authoritative source:
+    <p>Source fetched {{ c.source_fetched_at }}; snapshot published {{ c.published_at }}. Authoritative source:
       <a href="https://cado.eservices.gov.nl.ca/Company/CompanyNameNumberSearch.aspx" target="_blank" rel="noopener">CADO</a>.</p>
   </footer>
 </article>

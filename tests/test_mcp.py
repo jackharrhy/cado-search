@@ -62,8 +62,10 @@ async def test_lobbyist_and_status_tools_return_structured_data(
 
     assert lobbyist.structured_content is not None
     assert lobbyist.structured_content["contact_name"] == "Rhonda Tulk-Lane"
+    assert lobbyist.structured_content["subject_matters"][0]["name"] == "Economic Development"
     assert status.structured_content is not None
     assert status.structured_content["companies"]["count"] == 3
+    assert status.structured_content["snapshot_id"] == "test-snapshot"
 
 
 async def test_validation_and_not_found_are_tool_errors(

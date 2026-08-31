@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -38,6 +39,18 @@ def seeded_db(tmp_path: Path) -> Path:
         ingest_one_html(conn, "company", key, html)
     lobbyist_html = (FIXTURES / "lobbyist_summary_IHL-867-1005.html").read_text(encoding="utf-8")
     ingest_one_html(conn, "lobbyist", "IHL-867-1005", lobbyist_html)
+    now = datetime.now(UTC)
+    conn.execute(
+        """
+        INSERT INTO snapshot_metadata (
+            singleton, schema_version, snapshot_id, fetch_started_at,
+            source_fetched_at, snapshot_built_at, published_at,
+            company_start, company_stop, lobbyist_expected_count,
+            company_cache_count, lobbyist_cache_count
+        ) VALUES (TRUE, 2, 'test-snapshot', ?, ?, ?, ?, 1, 105000, 1, 5, 1)
+        """,
+        [now, now, now, now],
+    )
     conn.close()
     return db_path
 

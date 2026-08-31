@@ -24,6 +24,8 @@ from .models import (
     Company,
     CorporationType,
     Director,
+    InHouseLobbyist,
+    LobbyingActivity,
     LobbyistRegistration,
     LobbyistType,
     PreviousName,
@@ -88,6 +90,10 @@ class CompanyRecord(Company):
     """A complete mirrored company record with provenance metadata."""
 
     ingested_at: datetime
+    snapshot_id: str
+    source_fetched_at: datetime
+    snapshot_built_at: datetime
+    published_at: datetime
     record_url: str
     source_registry_url: str = COMPANY_SOURCE_URL
     source_notice: str = SOURCE_NOTICE
@@ -97,16 +103,19 @@ class LobbyistRecord(LobbyistRegistration):
     """A complete mirrored lobbyist registration with provenance metadata."""
 
     ingested_at: datetime
+    snapshot_id: str
+    source_fetched_at: datetime
+    snapshot_built_at: datetime
+    published_at: datetime
     record_url: str
     source_registry_url: str = LOBBYIST_SOURCE_URL
     source_notice: str = SOURCE_NOTICE
 
 
 class RegistrySnapshot(BaseModel):
-    """Count and newest mirror timestamp for one registry."""
+    """Published record count for one registry."""
 
     count: int
-    latest_ingested_at: datetime | None = None
 
 
 class DatasetStatus(BaseModel):
@@ -117,6 +126,11 @@ class DatasetStatus(BaseModel):
     source_name: str = "Government of Newfoundland and Labrador CADO"
     source_url: str = "https://cado.eservices.gov.nl.ca/"
     notice: str = SOURCE_NOTICE
+    snapshot_id: str
+    schema_version: int
+    source_fetched_at: datetime
+    snapshot_built_at: datetime
+    published_at: datetime
     companies: RegistrySnapshot
     condominiums: RegistrySnapshot
     cooperatives: RegistrySnapshot
@@ -255,6 +269,7 @@ class RegistryQueryService:
                 """,
                 [key],
             ).fetchall()
+            provenance = _snapshot_provenance(conn)
 
         return CompanyRecord(
             number=row["number"],
@@ -282,6 +297,7 @@ class RegistryQueryService:
                 PreviousName(name=item[0], effective_date=item[1]) for item in previous_names
             ],
             ingested_at=row["ingested_at"],
+            **provenance,
             record_url=self._record_url("company", row["number"]),
         )
 
@@ -361,6 +377,7 @@ class RegistryQueryService:
                 "SELECT * FROM lobbyist_registrations WHERE registration_number = ?",
                 [key],
             )
+            provenance = _snapshot_provenance(conn)
         if row is None:
             return None
 
@@ -394,39 +411,82 @@ class RegistryQueryService:
             particulars=row["particulars"],
             organization_description=row["organization_description"],
             organization_membership=row["organization_membership"],
+            subject_matters=[
+                LobbyingActivity.model_validate(item) for item in _json_list(row["subject_matters"])
+            ],
+            lobbying_targets=[
+                LobbyingActivity.model_validate(item)
+                for item in _json_list(row["lobbying_targets"])
+            ],
+            communication_techniques=[
+                LobbyingActivity.model_validate(item)
+                for item in _json_list(row["communication_techniques"])
+            ],
+            in_house_lobbyists=[
+                InHouseLobbyist.model_validate(item)
+                for item in _json_list(row["in_house_lobbyists"])
+            ],
             raw_fields=raw_fields,
             ingested_at=row["ingested_at"],
+            **provenance,
             record_url=self._record_url("lobbyist", row["registration_number"]),
         )
 
     def get_dataset_status(self) -> DatasetStatus:
-        """Return registry row counts and their newest ingestion timestamps."""
+        """Return registry counts and truthful published-snapshot timestamps."""
         with self._connection() as conn:
             rows = conn.execute(
                 """
-                SELECT corporation_type, COUNT(*), MAX(ingested_at)
+                SELECT corporation_type, COUNT(*)
                 FROM companies
                 GROUP BY corporation_type
                 """
             ).fetchall()
-            company_status = {
-                row[0]: RegistrySnapshot(count=row[1], latest_ingested_at=row[2]) for row in rows
-            }
-            lobbyist_row = conn.execute(
-                "SELECT COUNT(*), MAX(ingested_at) FROM lobbyist_registrations"
-            ).fetchone()
+            company_status = {row[0]: RegistrySnapshot(count=row[1]) for row in rows}
+            lobbyist_row = conn.execute("SELECT COUNT(*) FROM lobbyist_registrations").fetchone()
+            provenance = _snapshot_provenance(conn, include_schema=True)
         return DatasetStatus(
+            **provenance,
             companies=company_status.get("Company", RegistrySnapshot(count=0)),
             condominiums=company_status.get("Condominium", RegistrySnapshot(count=0)),
             cooperatives=company_status.get("Co-operative", RegistrySnapshot(count=0)),
-            lobbyists=RegistrySnapshot(
-                count=_scalar_int(lobbyist_row),
-                latest_ingested_at=lobbyist_row[1] if lobbyist_row else None,
-            ),
+            lobbyists=RegistrySnapshot(count=_scalar_int(lobbyist_row)),
         )
 
     def _record_url(self, kind: str, key: str) -> str:
         return f"{self.public_base_url}/{kind}/{key}"
+
+
+def _snapshot_provenance(
+    conn: duckdb.DuckDBPyConnection,
+    *,
+    include_schema: bool = False,
+) -> dict[str, Any]:
+    row = conn.execute(
+        """
+        SELECT schema_version, snapshot_id, source_fetched_at,
+               snapshot_built_at, published_at
+        FROM snapshot_metadata
+        """
+    ).fetchone()
+    if row is None or row[4] is None:
+        raise RuntimeError("DuckDB has no published snapshot metadata")
+    provenance: dict[str, Any] = {
+        "snapshot_id": row[1],
+        "source_fetched_at": row[2],
+        "snapshot_built_at": row[3],
+        "published_at": row[4],
+    }
+    if include_schema:
+        provenance["schema_version"] = row[0]
+    return provenance
+
+
+def _json_list(value: object) -> list[object]:
+    if value is None:
+        return []
+    parsed = json.loads(value) if isinstance(value, str) else value
+    return parsed if isinstance(parsed, list) else []
 
 
 def _validate_page(limit: int, offset: int) -> None:

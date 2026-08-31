@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gzip
 from pathlib import Path
 
 import pytest
@@ -67,3 +68,27 @@ class TestHtmlCache:
         cache.write("25166", "<html>hi</html>")
         bytes_b = cache.path_for("25166").read_bytes()
         assert bytes_a == bytes_b
+
+    def test_failed_write_preserves_previous_file(
+        self, cache: HtmlCache, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        cache.write("25166", "old")
+
+        def fail_write(self: gzip.GzipFile, data: bytes) -> int:
+            raise OSError("simulated disk failure")
+
+        monkeypatch.setattr(gzip.GzipFile, "write", fail_write)
+        with pytest.raises(OSError, match="simulated"):
+            cache.write("25166", "new")
+        assert cache.read("25166") == "old"
+        assert list(cache.path_for("25166").parent.glob("*.tmp")) == []
+
+    def test_completion_journal_ignores_torn_last_line(self, cache: HtmlCache) -> None:
+        cache.mark_completed("1", outcome="empty")
+        with cache.completion_log_path.open("a") as fh:
+            fh.write('{"key":"2"')
+
+        resumed = HtmlCache(root=cache.root.parent, registry="companies")
+        assert resumed.is_completed("1")
+        assert resumed.completed_outcome("1") == "empty"
+        assert not resumed.is_completed("2")

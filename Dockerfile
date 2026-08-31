@@ -82,10 +82,10 @@ USER cado
 
 EXPOSE 8000
 
-# Lightweight HTTP healthcheck: the UI returns 200 if the DB is open.
+# Readiness checks the schema and published snapshot metadata.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD python -c "import urllib.request, sys; \
-sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3).status == 200 else 1)" \
+sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3).status == 200 else 1)" \
     || exit 1
 
 # tini handles PID 1 / signal forwarding so Ctrl-C on `docker run` exits cleanly.

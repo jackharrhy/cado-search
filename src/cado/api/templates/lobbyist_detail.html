@@ -27,18 +27,18 @@
       <h3>Contact</h3>
       <p><strong>{{ r.contact_name or "—" }}</strong></p>
       <address>
-        {{ r.contact_line1 or "" }}<br>
-        {{ r.contact_city or "" }}{% if r.contact_city %}, {% endif %}{{ r.contact_province_state or "" }}<br>
-        {{ r.contact_postal_zip or "" }}
+        {{ r.contact_address.line1 or "" }}<br>
+        {{ r.contact_address.city or "" }}{% if r.contact_address.city %}, {% endif %}{{ r.contact_address.province_state or "" }}<br>
+        {{ r.contact_address.postal_zip or "" }}
       </address>
     </div>
     <div>
       <h3>Firm / organisation</h3>
       <p><strong>{{ r.firm_name or "—" }}</strong></p>
       <address>
-        {{ r.firm_line1 or "" }}<br>
-        {{ r.firm_city or "" }}{% if r.firm_city %}, {% endif %}{{ r.firm_province_state or "" }}<br>
-        {{ r.firm_postal_zip or "" }}
+        {{ r.firm_address.line1 or "" }}<br>
+        {{ r.firm_address.city or "" }}{% if r.firm_address.city %}, {% endif %}{{ r.firm_address.province_state or "" }}<br>
+        {{ r.firm_address.postal_zip or "" }}
       </address>
     </div>
   </section>
@@ -64,8 +64,40 @@
   </section>
   {% endif %}
 
+  {% if r.subject_matters %}
+  <section>
+    <h3>Subject matter</h3>
+    <ul>{% for item in r.subject_matters %}<li>{{ item.name }}</li>{% endfor %}</ul>
+  </section>
+  {% endif %}
+
+  {% if r.lobbying_targets %}
+  <section>
+    <h3>Lobbying targets</h3>
+    <ul>{% for item in r.lobbying_targets %}<li>{{ item.name }}</li>{% endfor %}</ul>
+  </section>
+  {% endif %}
+
+  {% if r.communication_techniques %}
+  <section>
+    <h3>Communication techniques</h3>
+    <ul>{% for item in r.communication_techniques %}<li>{{ item.name }}</li>{% endfor %}</ul>
+  </section>
+  {% endif %}
+
+  {% if r.in_house_lobbyists %}
+  <section>
+    <h3>In-house lobbyists</h3>
+    <ul>
+      {% for item in r.in_house_lobbyists %}
+      <li>{{ item.name }}{% if item.effective_date %} — effective {{ item.effective_date }}{% endif %}</li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
   <footer class="record-footer">
-    <p>Ingested {{ r.ingested_at }}. Authoritative source:
+    <p>Source fetched {{ r.source_fetched_at }}; snapshot published {{ r.published_at }}. Authoritative source:
       <a href="https://cado.eservices.gov.nl.ca/Lobbyist/LobbyistSearch.aspx" target="_blank" rel="noopener">Registry of Lobbyists</a>.</p>
   </footer>
 </article>

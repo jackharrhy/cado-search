@@ -36,17 +36,14 @@ Empirical findings driving the design (all in `tests/fixtures/`):
 - The lobbyist registry has ~727 records, paginated 10 at a time, with
   the same viewstate-driven postback flow.
 
-## Quickstart
+## First fetch and local start
 
 ```bash
 uv sync
 
-# Scrape from upstream (~3 hours for the full company range at defaults)
-uv run cado scrape companies --start 1 --stop 105000
-uv run cado scrape lobbyists
-
-# Parse the on-disk cache into DuckDB (fast)
-uv run cado ingest all
+# Fetch both registries, rebuild a fresh DuckDB, validate, and publish it.
+# The first run takes roughly 2-3 hours and safely resumes if interrupted.
+uv run cado refresh
 
 # Serve the search UI and MCP endpoint on http://0.0.0.0:8000
 # (pass --host 127.0.0.1 to restrict to localhost)
@@ -66,14 +63,14 @@ The MCP server exposes five structured, read-only tools:
 | `search_companies` | Search companies, condominiums, and co-operatives by current name or exact number, with type/category/status filters and bounded pagination. |
 | `get_company` | Get a complete record including addresses, directors, previous names, historical remarks, and mirror provenance. |
 | `search_lobbyists` | Search lobbyist contacts, firms, or exact registration numbers with type/status filters and bounded pagination. |
-| `get_lobbyist` | Get a complete mirrored lobbyist registration and its captured raw label fields. |
-| `get_dataset_status` | Get per-registry counts, newest ingestion timestamps, source attribution, and the mirror freshness notice. |
+| `get_lobbyist` | Get a complete mirrored lobbyist registration, including subject matters, targets, techniques, in-house lobbyists, and captured raw fields. |
+| `get_dataset_status` | Get per-registry counts, snapshot identity, source-fetch/build/publication timestamps, attribution, and the mirror freshness notice. |
 
 Searches return at most 50 records at a time and include `next_offset` when
-another page is available. Every detail result includes its ingestion time and
-a link to the corresponding page in this application. Because this is a
-mirror, time-sensitive or legal use should be verified against the government
-registry.
+another page is available. Every detail result identifies the immutable
+snapshot and distinguishes when the source was fetched, the database was
+built, and the snapshot was published. Because this is a mirror,
+time-sensitive or legal use should be verified against the government registry.
 
 To inspect the HTTP endpoint locally, start `cado serve`, launch the official
 MCP Inspector, and connect it to `http://127.0.0.1:8000/mcp`:
@@ -89,6 +86,32 @@ JSON arrays in environment variables.
 
 `cado info` prints a summary of the on-disk cache and DuckDB row counts.
 
+## Snapshot lifecycle
+
+`cado refresh` is the production data path:
+
+1. Acquire an exclusive refresh lock.
+2. Fetch into a fresh `data/refresh/` workspace. Gzip files are replaced
+   atomically, and company search seeds are journaled only after every drill
+   succeeds. Empty seeds are journaled too.
+3. Require 1,000 consecutive empty company-number searches at the configured
+   high-water mark and require the lobbyist index count to equal its upstream total.
+4. Build `cado.next.duckdb` from scratch. Any fetch error, parse error, empty
+   registry, count mismatch, schema mismatch, or greater-than-20% count drop
+   refuses publication.
+5. Checkpoint and close the candidate, retain `cado.previous.duckdb`, then
+   atomically replace `cado.duckdb`. The server never opens the live file for writing.
+6. Archive the raw snapshot. The newest two raw snapshots and previous database
+   are retained for rollback; older raw snapshots are removed.
+
+Re-run the identical command after interruption. If the company high-water
+validation fails, increase `--stop`; the existing work is retained. Use
+`cado clean refresh --yes` only to intentionally discard an unfinished fetch.
+
+The lower-level `cado scrape` and `cado ingest` commands remain useful for
+parser development, but they do not produce a publishable database. `cado
+serve` and `cado check` accept only a validated snapshot built by `cado refresh`.
+
 ### On-disk layout
 
 Everything lives under `data_dir` (default: `<project_root>/data/`, override
@@ -96,28 +119,29 @@ via `CADO_DATA_DIR`):
 
 ```
 data/
-├── html/                          ← raw scraped HTML cache (source of truth)
-│   ├── companies/
-│   │   ├── 10/10000.html.gz       ← CompanyDetails.aspx, sharded by first 2 chars
-│   │   ├── 2D/2D.html.gz          ← legacy suffixed ids
-│   │   └── _list/1.list.html.gz   ← multi-row search results (low numbers only)
-│   └── lobbyists/
-│       └── IH/IHL-867-1005.html.gz
-└── cado.duckdb                    ← derived database (rebuildable from the cache)
+├── cado.duckdb                    ← atomically published, served read-only
+├── cado.previous.duckdb           ← immediate rollback copy
+├── refresh/                       ← one resumable in-progress snapshot
+│   ├── manifest.json
+│   └── html/{companies,lobbyists}/
+└── snapshots/<snapshot-id>/       ← newest two completed raw snapshots
+    ├── manifest.json
+    └── html/{companies,lobbyists}/
 ```
 
-Approximate sizes once full: ~500 MB for `data/html/companies/`, ~10 MB for
-`data/html/lobbyists/`, ~150 MB for `cado.duckdb`.
+Approximate size per raw snapshot: ~500 MB for companies and ~10 MB for
+lobbyists. DuckDB is roughly 150 MB.
 
 ### Cleaning up
 
 ```bash
-uv run cado clean db        # drop the DuckDB; rebuild with `cado ingest all`
-uv run cado clean cache     # drop the raw HTML cache (destructive! re-scrape needed)
-uv run cado clean all       # drop everything
+uv run cado clean refresh   # discard only an unfinished refresh
+uv run cado clean db        # drop the published and previous DuckDB
+uv run cado clean cache     # drop staged/archived raw HTML (destructive)
+uv run cado clean all       # drop all database and raw snapshot data
 ```
 
-All three prompt for confirmation; pass `--yes` to skip.
+Destructive commands prompt for confirmation; pass `--yes` to skip.
 
 ### Concurrency, rate, and politeness
 
@@ -129,25 +153,15 @@ These were picked empirically. The upstream:
 - sustains ~12-14 req/s effective throughput before any diminishing returns
 - has ~250-500ms per-request latency, which dominates over any sensible rate cap
 
-For maximum speed, bump concurrency:
+For maximum speed, bump concurrency on the complete refresh:
 
 ```bash
-uv run cado scrape companies --concurrency 24   # ~14 req/s, ~2 hr full scrape
-uv run cado scrape lobbyists  --concurrency 8   # ~5 min full scrape
+uv run cado refresh --concurrency 24   # ~14 req/s, ~2 hr full company fetch
 ```
 
 The scraper sends a descriptive `User-Agent` identifying the project and a
 contact email. All settings can be overridden via `--concurrency` / `--rate`
 flags or the `CADO_MAX_CONCURRENCY` / `CADO_REQUESTS_PER_SECOND` env vars.
-
-### Resumption
-
-The on-disk HTML cache (`data/html/`) is the source of truth. Every
-scrape skips records that are already cached unless `--rescrape` is given,
-so interrupted runs resume cleanly. Re-running `cado ingest` is
-idempotent: child rows are wiped and reinserted within a single
-transaction per record, so you can re-parse with an updated parser
-without producing duplicates.
 
 ## Layout
 
@@ -156,6 +170,8 @@ src/cado/
 ├── settings.py       # env-driven config (CADO_*)
 ├── http.py           # CADOClient (httpx) + viewstate + RateLimiter
 ├── storage.py        # HtmlCache: gzipped HTML on disk, sharded
+├── refresh.py        # resumable fetch orchestration
+├── snapshot.py       # rebuild, validation, atomic publication, retention
 ├── models.py         # Pydantic schemas
 ├── parsers/
 │   ├── company.py    # bs4 -> Company / CompanySearchResult
@@ -176,7 +192,7 @@ src/cado/
 └── cli.py            # `cado` Typer entry-point
 ```
 
-## Docker
+## Docker: first boot, hosting, and updates
 
 A multi-arch image (linux/amd64 + linux/arm64) is published to GitHub
 Container Registry on every push to `main` and on every `v*.*.*` tag:
@@ -187,38 +203,54 @@ ghcr.io/jackharrhy/cado:sha-<short>
 ghcr.io/jackharrhy/cado:v1.2.3      (on tags)
 ```
 
-The image defaults to running `cado serve --host 0.0.0.0 --port 8000`, serving
-both the web UI and MCP endpoint.
-Mount a volume at `/data` to persist the HTML cache and DuckDB across
-container restarts:
+The public container defaults to serving both the UI and stateless Streamable
+HTTP MCP endpoint. Bootstrap the volume before starting it:
 
 ```bash
-docker run -d \
-  --name cado \
-  -p 8000:8000 \
-  -v cado-data:/data \
-  ghcr.io/jackharrhy/cado:latest
+docker compose pull
+docker compose run --rm refresh       # first 2-3 hour fetch; safe to rerun
+docker compose up -d                  # preflight check gates server startup
+docker compose ps
 ```
 
-Run scraping and ingest as one-shot commands against the same volume:
+The server mounts `/data` read-only. The one-shot refresh container is the
+only normal writer. On a fresh volume, the `snapshot-ready` preflight exits
+nonzero and Compose does not start the public service until bootstrap succeeds.
+
+Put port 8000 behind the host's TLS reverse proxy and apply request/concurrency
+limits there. The intended public endpoints are
+`https://cado.jackharrhy.dev/` and `https://cado.jackharrhy.dev/mcp`.
+
+### Periodic updates
+
+Run one full refresh monthly. Scheduling stays outside the web process; the
+command has its own non-blocking volume lock, so overlapping refreshes fail:
+
+```cron
+0 3 1 * * cd /srv/cado && docker compose run --rm refresh >>/var/log/cado-refresh.log 2>&1
+```
+
+The active UI/MCP process continues reading the old immutable database while
+the new snapshot is fetched and built. New requests see the replacement after
+the atomic promotion; already-open readers finish against the previous file.
+Use the same pinned image tag for the running service and scheduled refreshes.
+Deploy code/schema changes as a separate maintenance operation, then verify:
 
 ```bash
-docker run --rm -v cado-data:/data ghcr.io/jackharrhy/cado:latest \
-  scrape companies --concurrency 24
-
-docker run --rm -v cado-data:/data ghcr.io/jackharrhy/cado:latest \
-  ingest all
-
-docker run --rm -v cado-data:/data ghcr.io/jackharrhy/cado:latest \
-  info
+docker compose run --rm snapshot-ready
+curl --fail http://127.0.0.1:8000/health/ready
 ```
 
-A `compose.yaml` is included for convenience: `docker compose up`.
+Back up the named volume. The raw snapshots are the reparsable source data;
+`cado.previous.duckdb` is the immediate database rollback.
 
 ## Tests
 
 ```bash
 uv run pytest                       # offline suite; live tests are skipped
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy src
 CADO_LIVE_TESTS=1 uv run pytest     # also runs 7 live tests against the real site
 ```
 

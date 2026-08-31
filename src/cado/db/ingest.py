@@ -13,7 +13,8 @@ There are two code paths:
 * ``ingest_companies`` / ``ingest_lobbyists`` -- the bulk path. Parsed
   records are buffered in memory, then flushed in batches via temporary
   CSV files (DuckDB's ``read_csv`` is ~150x faster than ``executemany``).
-  This is what the ``cado ingest`` CLI uses for the full registry.
+  This is used by both the lower-level ``cado ingest`` commands and the
+  production snapshot builder.
 """
 
 from __future__ import annotations
@@ -116,6 +117,7 @@ INSERT OR REPLACE INTO lobbyist_registrations (
     contact_name, contact_line1, contact_city, contact_province_state, contact_postal_zip,
     firm_name, firm_line1, firm_city, firm_province_state, firm_postal_zip,
     particulars, organization_description, organization_membership,
+    subject_matters, lobbying_targets, communication_techniques, in_house_lobbyists,
     raw_fields,
     ingested_at, source_html_sha256
 ) VALUES (
@@ -124,6 +126,7 @@ INSERT OR REPLACE INTO lobbyist_registrations (
     ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?,
     ?, ?, ?,
+    ?::JSON, ?::JSON, ?::JSON, ?::JSON,
     ?::JSON,
     current_timestamp, ?
 )
@@ -407,6 +410,10 @@ _LOBBYIST_COLUMNS: Final = [
     "particulars",
     "organization_description",
     "organization_membership",
+    "subject_matters",
+    "lobbying_targets",
+    "communication_techniques",
+    "in_house_lobbyists",
     "raw_fields",
     "source_html_sha256",
 ]
@@ -565,6 +572,10 @@ def _lobbyist_row(reg: LobbyistRegistration) -> list[object]:
         reg.particulars,
         reg.organization_description,
         reg.organization_membership,
+        json.dumps([item.model_dump(mode="json") for item in reg.subject_matters]),
+        json.dumps([item.model_dump(mode="json") for item in reg.lobbying_targets]),
+        json.dumps([item.model_dump(mode="json") for item in reg.communication_techniques]),
+        json.dumps([item.model_dump(mode="json") for item in reg.in_house_lobbyists]),
         json.dumps(reg.raw_fields, ensure_ascii=False),
     ]
 
@@ -705,6 +716,10 @@ _COLUMN_TYPES: Final[dict[str, dict[str, str]]] = {
         "particulars": "VARCHAR",
         "organization_description": "VARCHAR",
         "organization_membership": "VARCHAR",
+        "subject_matters": "JSON",
+        "lobbying_targets": "JSON",
+        "communication_techniques": "JSON",
+        "in_house_lobbyists": "JSON",
         "raw_fields": "JSON",
         "source_html_sha256": "VARCHAR",
     },
@@ -734,19 +749,3 @@ _INGEST_LOG_COLUMNS: Final = [
 
 def _sha256(html: str) -> str:
     return hashlib.sha256(html.encode("utf-8")).hexdigest()
-
-
-def _log_ingest(
-    conn: duckdb.DuckDBPyConnection,
-    kind: str,
-    key: str,
-    result: IngestResult,
-    sha: str,
-) -> None:
-    conn.execute(
-        """
-        INSERT INTO ingest_log (kind, record_key, parsed_ok, error, source_html_sha256)
-        VALUES (?, ?, ?, ?, ?)
-        """,
-        [kind, key, result.parsed_ok, result.error, sha],
-    )

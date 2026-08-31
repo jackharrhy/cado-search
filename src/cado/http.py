@@ -99,9 +99,8 @@ class ViewStateError(RuntimeError):
 class RateLimiter:
     """Minimal asyncio rate limiter.
 
-    Enforces an average rate of ``rate`` events/second over a sliding window of
-    one second. Implemented as a queue of timestamps so bursts of size
-    ``rate`` are allowed but the long-run rate is bounded.
+    Spaces request starts evenly so the long-run rate is bounded without a
+    background task or burst bookkeeping.
     """
 
     def __init__(self, rate_per_second: float) -> None:
@@ -112,7 +111,7 @@ class RateLimiter:
         self._lock = asyncio.Lock()
 
     async def acquire(self) -> None:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         async with self._lock:
             now = loop.time()
             wait_for = self._next_slot - now
@@ -166,8 +165,9 @@ class CADOClient:
         limiter: RateLimiter | None = None,
         semaphore: asyncio.Semaphore | None = None,
     ) -> None:
+        self._base_url = (base_url or settings.base_url).rstrip("/")
         self._client = httpx.AsyncClient(
-            base_url=base_url or settings.base_url,
+            base_url=self._base_url,
             timeout=httpx.Timeout(
                 connect=settings.connect_timeout,
                 read=settings.read_timeout,
@@ -255,6 +255,7 @@ class CADOClient:
         extra_fields: Mapping[str, str] | None = None,
         button: tuple[str, str] | None = None,
         referer: str | None = None,
+        viewstate: ViewState | None = None,
     ) -> httpx.Response:
         """Perform an ASP.NET ``__doPostBack`` against ``url``.
 
@@ -271,15 +272,19 @@ class CADOClient:
             buttons send ``name.x=10&name.y=10`` instead of an ``__EVENTTARGET``.
         referer:
             Sent as the ``Referer`` header. Defaults to ``url``.
+        viewstate:
+            Explicit captured form state to replay. Defaults to the state from
+            the most recent HTML response.
         """
-        if self._last_viewstate is None:
+        active_viewstate = viewstate or self._last_viewstate
+        if active_viewstate is None:
             raise RuntimeError(
                 "post_back called before any GET; fetch the form first to capture its __VIEWSTATE"
             )
         body: dict[str, str] = {
             "__EVENTTARGET": event_target,
             "__EVENTARGUMENT": event_argument,
-            **self._last_viewstate.to_form(),
+            **active_viewstate.to_form(),
         }
         if extra_fields:
             body.update(extra_fields)
@@ -294,7 +299,7 @@ class CADOClient:
     def _absolute(self, url: str) -> str:
         if url.startswith(("http://", "https://")):
             return url
-        return f"{settings.base_url}{url}"
+        return f"{self._base_url}{url}"
 
     def _maybe_capture_viewstate(self, response: httpx.Response) -> None:
         ctype = response.headers.get("content-type", "")

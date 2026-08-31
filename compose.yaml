@@ -3,23 +3,46 @@
 # Pulls the published image from ghcr.io by default. Override `image:` or set
 # `build: .` if you want to use a local build instead.
 #
-#   docker compose up         # start the search UI on :8000
-#   docker compose run --rm cado scrape companies --concurrency 24
-#   docker compose run --rm cado ingest all
+#   docker compose run --rm refresh  # first fetch, build, validation, and publish
+#   docker compose up -d             # start only after a snapshot exists
 
 services:
+  snapshot-ready:
+    image: ${CADO_IMAGE:-ghcr.io/jackharrhy/cado:latest}
+    command: ["check"]
+    restart: "no"
+    volumes:
+      - cado-data:/data:ro
+    environment:
+      CADO_DATA_DIR: /data
+
   cado:
-    image: ghcr.io/jackharrhy/cado:latest
+    image: ${CADO_IMAGE:-ghcr.io/jackharrhy/cado:latest}
     # Uncomment to build from the local Dockerfile instead of pulling.
     # build: .
-    container_name: cado
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "${CADO_PORT:-8000}:8000"
+    depends_on:
+      snapshot-ready:
+        condition: service_completed_successfully
+    volumes:
+      # The public process cannot mutate or lock the published snapshot as a writer.
+      - cado-data:/data:ro
+    environment:
+      # Override any setting via env vars; see src/cado/settings.py.
+      CADO_DATA_DIR: /data
+      # CADO_MAX_CONCURRENCY: "24"
+      # CADO_REQUESTS_PER_SECOND: "20"
+
+  refresh:
+    image: ${CADO_IMAGE:-ghcr.io/jackharrhy/cado:latest}
+    profiles: ["tools"]
+    command: ["refresh"]
+    restart: "no"
     volumes:
       - cado-data:/data
     environment:
-      # Override any setting via env vars; see src/cado/settings.py.
       CADO_DATA_DIR: /data
       # CADO_MAX_CONCURRENCY: "24"
       # CADO_REQUESTS_PER_SECOND: "20"

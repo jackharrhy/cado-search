@@ -3,11 +3,9 @@
 -- Design notes:
 --
 -- * The raw HTML on disk is the source of truth. Everything in this database
---   is *derived* and can be rebuilt by re-running ``cado ingest``.
+--   is *derived* and is rebuilt from scratch by ``cado refresh``.
 -- * Company number is a TEXT primary key (legacy filings use ``2D`` /
 --   ``100CM`` suffixes — see ``src/cado/models.py``).
--- * Full-text search uses DuckDB's ``fts`` extension. It's bound to a
---   *materialised* view so we can index any subset of columns we like.
 -- * Dates are stored as ``DATE``; ``NULL`` where the upstream omitted them.
 
 CREATE TABLE IF NOT EXISTS companies (
@@ -119,7 +117,12 @@ CREATE TABLE IF NOT EXISTS lobbyist_registrations (
     organization_description TEXT,
     organization_membership TEXT,
 
-    -- Everything else, as JSON keyed by lblXxx
+    subject_matters         JSON,
+    lobbying_targets        JSON,
+    communication_techniques JSON,
+    in_house_lobbyists      JSON,
+
+    -- Every simple and repeater label, keyed by its upstream element id.
     raw_fields              JSON,
 
     ingested_at             TIMESTAMP NOT NULL DEFAULT current_timestamp,
@@ -144,3 +147,20 @@ CREATE TABLE IF NOT EXISTS ingest_log (
 );
 
 CREATE INDEX IF NOT EXISTS idx_ingest_log_kind_key  ON ingest_log (kind, record_key);
+
+
+CREATE TABLE IF NOT EXISTS snapshot_metadata (
+    singleton                BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
+    schema_version           INTEGER NOT NULL,
+    snapshot_id              TEXT NOT NULL,
+    -- All snapshot timestamps are UTC.
+    fetch_started_at         TIMESTAMP NOT NULL,
+    source_fetched_at        TIMESTAMP NOT NULL,
+    snapshot_built_at        TIMESTAMP NOT NULL,
+    published_at             TIMESTAMP,
+    company_start            INTEGER NOT NULL,
+    company_stop             INTEGER NOT NULL,
+    lobbyist_expected_count  INTEGER,
+    company_cache_count      INTEGER NOT NULL,
+    lobbyist_cache_count     INTEGER NOT NULL
+);

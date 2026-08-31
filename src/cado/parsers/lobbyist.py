@@ -10,7 +10,6 @@ registry but with a different field set. There are two relevant pages:
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
 from datetime import date, datetime
 from typing import Final
 
@@ -18,6 +17,8 @@ from bs4 import BeautifulSoup, Tag
 
 from ..models import (
     Address,
+    InHouseLobbyist,
+    LobbyingActivity,
     LobbyistRegistration,
     LobbyistSearchHit,
 )
@@ -65,6 +66,28 @@ def parse_lobbyist_detail(html: str) -> LobbyistRegistration:
         particulars=raw.get("lblParticulars"),
         organization_description=raw.get("lblOrgDesc"),
         organization_membership=raw.get("lblOrgMembership"),
+        subject_matters=_activity_rows(
+            raw,
+            prefix="rptSubjectMatter",
+            name_label="lblSubjectMatter",
+            has_label="lblHas",
+            expects_label="lblExpects",
+        ),
+        lobbying_targets=_activity_rows(
+            raw,
+            prefix="rptTargets",
+            name_label="lblTargets",
+            has_label="lblTarHas",
+            expects_label="lblTarExpects",
+        ),
+        communication_techniques=_activity_rows(
+            raw,
+            prefix="rptCommTech",
+            name_label="lblCommTech",
+            has_label="lblCommHas",
+            expects_label="lblCommExpects",
+        ),
+        in_house_lobbyists=_in_house_rows(raw),
         raw_fields=raw,
     )
 
@@ -73,14 +96,14 @@ _WS_RX: Final = re.compile(r"[ \t]+")
 
 
 def _collect_all_labels(soup: BeautifulSoup) -> dict[str, str]:
-    """Snapshot every ``<span id="lblXxx">value</span>`` on the page.
+    """Snapshot every simple or repeater label on the page.
 
     We use ``separator='\\n'`` and *only* collapse intra-line whitespace so
     multi-line text (the free-form ``lblOrgDesc`` field, for instance) keeps
     its line breaks.
     """
     out: dict[str, str] = {}
-    for span in soup.find_all(id=re.compile(r"^lbl")):
+    for span in soup.find_all(id=re.compile(r"^(?:lbl|rpt.+_lbl)", re.IGNORECASE)):
         assert isinstance(span, Tag)
         sid = span.get("id")
         if not isinstance(sid, str) or not sid:
@@ -92,6 +115,63 @@ def _collect_all_labels(soup: BeautifulSoup) -> dict[str, str]:
         if text:
             out[sid] = text
     return out
+
+
+def _activity_rows(
+    raw: dict[str, str],
+    *,
+    prefix: str,
+    name_label: str,
+    has_label: str,
+    expects_label: str,
+) -> list[LobbyingActivity]:
+    rows: list[LobbyingActivity] = []
+    pattern = re.compile(rf"^{re.escape(prefix)}__ctl(\d+)_{re.escape(name_label)}$")
+    matches: list[tuple[int, str]] = []
+    for key, value in raw.items():
+        match = pattern.match(key)
+        if match:
+            matches.append((int(match.group(1)), value))
+    for index, name in sorted(matches):
+        row_prefix = f"{prefix}__ctl{index}_"
+        rows.append(
+            LobbyingActivity(
+                name=name,
+                has_lobbied=_yes_no(raw.get(row_prefix + has_label)),
+                expects_to_lobby=_yes_no(raw.get(row_prefix + expects_label)),
+            )
+        )
+    return rows
+
+
+def _in_house_rows(raw: dict[str, str]) -> list[InHouseLobbyist]:
+    pattern = re.compile(r"^rptInHouseLobbyists__ctl(\d+)_lblInHouseLobbyist$")
+    matches: list[tuple[int, str]] = []
+    for key, value in raw.items():
+        match = pattern.match(key)
+        if match:
+            matches.append((int(match.group(1)), value))
+    return [
+        InHouseLobbyist(
+            name=name,
+            effective_date=_to_date(
+                raw.get(f"rptInHouseLobbyists__ctl{index}_lblinHouseEffective")
+            ),
+            inactive_date=_to_date(raw.get(f"rptInHouseLobbyists__ctl{index}_lblinHouseInactive")),
+        )
+        for index, name in sorted(matches)
+    ]
+
+
+def _yes_no(value: str | None) -> bool | None:
+    if value is None:
+        return None
+    normalised = value.strip().casefold()
+    if normalised == "yes":
+        return True
+    if normalised == "no":
+        return False
+    return None
 
 
 def _infer_lobbyist_type(reg_num: str, raw: dict[str, str]) -> str | None:
@@ -206,15 +286,6 @@ def has_next_page(html: str) -> bool:
     if viewing is None or total is None:
         return False
     return viewing[1] < total
-
-
-def all_row_indices(html: str) -> Iterable[int]:
-    """Yield the 1-based row indices on a results page (for postback drill-in)."""
-    soup = BeautifulSoup(html, "lxml")
-    for anchor in soup.find_all("a", id=_ROW_REG_RX):
-        m = _ROW_REG_RX.search(anchor.get("id", ""))
-        if m:
-            yield int(m.group(1))
 
 
 # ---------------------------------------------------------------------------

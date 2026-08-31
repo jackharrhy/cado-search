@@ -143,7 +143,7 @@ def create_mcp_server(service: RegistryQueryService) -> MCPServer[None]:
 
     @server.tool(title="Get dataset status", annotations=READ_ONLY)
     def get_dataset_status() -> DatasetStatus:
-        """Get mirror coverage, newest ingestion timestamps, and source attribution."""
+        """Get coverage, snapshot identity, provenance timestamps, and source attribution."""
         return service.get_dataset_status()
 
     return server

@@ -1,17 +1,21 @@
 """On-disk caching of raw scraped HTML.
 
-The DuckDB schema is a *derived* artifact — we keep every raw page we ever
-fetched as a gzipped file under ``data/html/`` so we can re-parse with an
-updated parser without re-hitting the upstream site. Files are sharded by the
-first two characters of the id (or "00" for short ids) to avoid 100k+ files
-in a single directory.
+The DuckDB schema is a *derived* artifact. Each immutable snapshot keeps its
+raw pages as gzipped files so it can be validated or re-parsed without
+re-hitting the upstream site. Files are sharded by the first two characters of
+the id (or "00" for short ids) to avoid 100k+ files in one directory.
 """
 
 from __future__ import annotations
 
 import gzip
+import json
+import os
+import tempfile
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from .settings import settings
 
@@ -49,6 +53,7 @@ class HtmlCache:
     ) -> None:
         self.root = (root or settings.html_cache_dir) / registry
         self.root.mkdir(parents=True, exist_ok=True)
+        self._completed_outcomes: dict[str, str] | None = None
 
     # ---- paths --------------------------------------------------------
 
@@ -81,11 +86,21 @@ class HtmlCache:
         path.parent.mkdir(parents=True, exist_ok=True)
         # Gzip with mtime=0 and a fixed compression level so the same input
         # produces a byte-identical file — keeps diffs / hashes stable.
-        with (
-            path.open("wb") as raw,
-            gzip.GzipFile(fileobj=raw, mode="wb", compresslevel=6, mtime=0) as fh,
-        ):
-            fh.write(html.encode("utf-8"))
+        fd, temporary_name = tempfile.mkstemp(
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+        )
+        temporary_path = Path(temporary_name)
+        try:
+            with (
+                os.fdopen(fd, "wb") as raw,
+                gzip.GzipFile(fileobj=raw, mode="wb", compresslevel=6, mtime=0) as fh,
+            ):
+                fh.write(html.encode("utf-8"))
+            os.replace(temporary_path, path)
+        finally:
+            temporary_path.unlink(missing_ok=True)
         return path
 
     def read(self, key: str, *, kind: str = "detail") -> str:
@@ -100,6 +115,86 @@ class HtmlCache:
             return True
         except FileNotFoundError:
             return False
+
+    # ---- resumable search-seed completion -----------------------------
+
+    @property
+    def completion_log_path(self) -> Path:
+        """Append-only journal of fully processed upstream search seeds."""
+        return self.root / "_completed.jsonl"
+
+    def is_completed(self, key: str) -> bool:
+        """Return whether every result for search seed ``key`` was persisted.
+
+        An exact detail file can safely be treated as complete, including in a
+        legacy cache without a journal. A list page is deliberately insufficient:
+        an interrupted multi-row drill may have saved only some of its rows.
+        """
+        if self._completed_outcomes is None:
+            self._completed_outcomes = self._read_completed_outcomes()
+        return key in self._completed_outcomes or self.exists(key, kind="detail")
+
+    def completed_outcome(self, key: str) -> str | None:
+        """Return the journaled outcome for ``key``, if it is complete."""
+        if self._completed_outcomes is None:
+            self._completed_outcomes = self._read_completed_outcomes()
+        return self._completed_outcomes.get(key)
+
+    def mark_completed(
+        self,
+        key: str,
+        *,
+        outcome: str,
+        detail_keys: list[str] | None = None,
+    ) -> None:
+        """Journal a successful detail/list/empty search result.
+
+        One compact append is used so a torn final line can simply be ignored
+        on resume. Callers must invoke this only after every referenced cache
+        file has been atomically persisted.
+        """
+        if self._completed_outcomes is None:
+            self._completed_outcomes = self._read_completed_outcomes()
+        payload: dict[str, Any] = {
+            "key": key,
+            "outcome": outcome,
+            "detail_keys": detail_keys or [],
+            "completed_at": datetime.now(UTC).isoformat(),
+        }
+        self.root.mkdir(parents=True, exist_ok=True)
+        encoded = (json.dumps(payload, separators=(",", ":")) + "\n").encode()
+        fd = os.open(
+            self.completion_log_path,
+            os.O_APPEND | os.O_CREAT | os.O_WRONLY,
+            0o644,
+        )
+        try:
+            view = memoryview(encoded)
+            while view:
+                written = os.write(fd, view)
+                view = view[written:]
+        finally:
+            os.close(fd)
+        self._completed_outcomes[key] = outcome
+
+    def _read_completed_outcomes(self) -> dict[str, str]:
+        path = self.completion_log_path
+        if not path.exists():
+            return {}
+        completed: dict[str, str] = {}
+        with path.open(encoding="utf-8") as fh:
+            for line in fh:
+                try:
+                    payload = json.loads(line)
+                    key = payload["key"]
+                    outcome = payload["outcome"]
+                except (json.JSONDecodeError, KeyError, TypeError):
+                    # A process may have died during the final append. Earlier
+                    # complete lines remain valid and the torn seed is retried.
+                    continue
+                if isinstance(key, str) and isinstance(outcome, str):
+                    completed[key] = outcome
+        return completed
 
     # ---- enumeration --------------------------------------------------
 

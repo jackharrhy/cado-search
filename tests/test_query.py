@@ -61,6 +61,8 @@ class TestCompanyQueries:
         ]
         assert record.record_url == "https://cado.example/company/50000"
         assert record.ingested_at is not None
+        assert record.snapshot_id == "test-snapshot"
+        assert record.source_fetched_at is not None
 
     def test_missing_detail_is_none(self, service: RegistryQueryService) -> None:
         assert service.get_company("NOPE") is None
@@ -97,6 +99,8 @@ class TestLobbyistQueries:
         assert record.contact_name == "Rhonda Tulk-Lane"
         assert record.firm_name == "Atlantic Chamber of Commerce"
         assert "lblOrgMembership" in record.raw_fields
+        assert record.subject_matters[0].name == "Economic Development"
+        assert record.in_house_lobbyists[0].name == "Tulk-Lane, Rhonda"
 
 
 def test_dataset_status_reports_each_registry(service: RegistryQueryService) -> None:
@@ -106,5 +110,8 @@ def test_dataset_status_reports_each_registry(service: RegistryQueryService) -> 
     assert status.condominiums.count == 1
     assert status.cooperatives.count == 1
     assert status.lobbyists.count == 1
-    assert status.companies.latest_ingested_at is not None
+    assert status.snapshot_id == "test-snapshot"
+    assert status.source_fetched_at is not None
+    assert status.snapshot_built_at is not None
+    assert status.published_at is not None
     assert "mirror" in status.notice.lower()

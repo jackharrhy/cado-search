@@ -12,6 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from cado.api import create_app
+from cado.db import connect
 
 
 @pytest.fixture
@@ -31,6 +32,14 @@ class TestIndex:
         assert '>1</span><span class="label">Condominiums' in response.text
         assert '>1</span><span class="label">Co-operatives' in response.text
         assert '>1</span><span class="label">Lobbyists' in response.text
+        assert "test-snapshot" in response.text
+
+    def test_health_endpoints(self, client: TestClient) -> None:
+        assert client.get("/health/live").json() == {"status": "ok"}
+        assert client.get("/health/ready").json() == {
+            "status": "ok",
+            "snapshot_id": "test-snapshot",
+        }
 
 
 class TestCompanySearch:
@@ -88,6 +97,11 @@ class TestCompanyDetail:
         response = client.get("/company/9999999")
         assert response.status_code == 404
 
+    def test_404_does_not_reflect_unescaped_path_input(self, client: TestClient) -> None:
+        response = client.get("/company/%3Cimg%20src=x%20onerror=alert(1)%3E")
+        assert response.status_code == 404
+        assert "<img" not in response.text
+
 
 class TestLobbyistEndpoints:
     def test_search(self, client: TestClient) -> None:
@@ -100,6 +114,8 @@ class TestLobbyistEndpoints:
         assert response.status_code == 200
         assert "Rhonda Tulk-Lane" in response.text
         assert "Atlantic Chamber of Commerce" in response.text
+        assert "Economic Development" in response.text
+        assert "Tulk-Lane, Rhonda" in response.text
 
     def test_detail_404(self, client: TestClient) -> None:
         response = client.get("/lobbyist/NOPE-000-000")
@@ -111,4 +127,11 @@ class TestStartupRequiresDatabase:
         app = create_app(tmp_path / "missing.duckdb")
         # Lifespan errors surface on first request via TestClient.
         with pytest.raises(RuntimeError, match="does not exist"), TestClient(app):
+            pass
+
+    def test_rejects_database_without_published_metadata(self, tmp_path: Path) -> None:
+        db_path = tmp_path / "unpublished.duckdb"
+        connect(db_path).close()
+        app = create_app(db_path)
+        with pytest.raises(RuntimeError, match="no metadata"), TestClient(app):
             pass
