@@ -39,6 +39,29 @@ async def test_lists_five_read_only_tools(mcp_server: MCPServer[None]) -> None:
         assert tool.output_schema is not None
 
 
+async def test_search_schemas_teach_agents_the_nested_filter_contract(
+    mcp_server: MCPServer[None],
+) -> None:
+    async with Client(mcp_server) as client:
+        tools = {tool.name: tool for tool in (await client.list_tools()).tools}
+
+    company_schema = tools["search_companies"].input_schema
+    company_defs = company_schema["$defs"]
+    company_filters = company_defs["CompanySearchFilters"]
+    director_filter = company_filters["properties"]["director_names"]
+    text_terms = company_defs["TextTermsFilter"]
+    assert "current director" in director_filter["description"].lower()
+    assert director_filter["examples"][0]["match"] == "all"
+    assert text_terms["properties"]["match"]["default"] == "any"
+    assert company_schema["properties"]["filters"]["examples"][0]["statuses"] == ["Active"]
+
+    lobbyist_schema = tools["search_lobbyists"].input_schema
+    lobbyist_filters = lobbyist_schema["$defs"]["LobbyistSearchFilters"]
+    activity = lobbyist_schema["$defs"]["LobbyingActivityFilter"]
+    assert "client_names" in lobbyist_filters["properties"]
+    assert "expects_to_lobby" in activity["properties"]
+
+
 async def test_company_tools_return_structured_data(mcp_server: MCPServer[None]) -> None:
     async with Client(mcp_server) as client:
         search = await client.call_tool("search_companies", {"query": "Irving"})
@@ -51,6 +74,46 @@ async def test_company_tools_return_structured_data(mcp_server: MCPServer[None])
     assert detail.structured_content is not None
     assert len(detail.structured_content["directors"]) == 4
     assert detail.structured_content["record_url"] == "https://cado.example/company/50000"
+
+
+async def test_company_search_accepts_multi_director_filters(
+    mcp_server: MCPServer[None],
+) -> None:
+    async with Client(mcp_server) as client:
+        search = await client.call_tool(
+            "search_companies",
+            {
+                "filters": {
+                    "director_names": {
+                        "terms": ["Mark Courtney", "Steven Crewe"],
+                        "match": "all",
+                    },
+                    "statuses": ["Active"],
+                }
+            },
+        )
+
+    assert search.is_error is False
+    assert search.structured_content is not None
+    assert search.structured_content["total"] == 1
+    assert search.structured_content["items"][0]["number"] == "50000"
+
+
+async def test_affiliated_person_search_returns_match_evidence(
+    mcp_server: MCPServer[None],
+) -> None:
+    async with Client(mcp_server) as client:
+        company = await client.call_tool("search_companies", {"query": "Mark Courtney"})
+        lobbyist = await client.call_tool("search_lobbyists", {"query": "Tulk-Lane, Rhonda"})
+
+    assert company.structured_content is not None
+    assert company.structured_content["items"][0]["query_matches"] == [
+        {"field": "current_director", "value": "Mark Courtney"}
+    ]
+    assert lobbyist.structured_content is not None
+    assert lobbyist.structured_content["items"][0]["query_matches"] == [
+        {"field": "in_house_lobbyist", "value": "Tulk-Lane, Rhonda"}
+    ]
 
 
 async def test_lobbyist_and_status_tools_return_structured_data(

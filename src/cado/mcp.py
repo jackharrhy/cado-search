@@ -10,12 +10,13 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from . import __version__
-from .models import Category, CorporationType, LobbyistType
 from .query import (
     CompanyRecord,
+    CompanySearchFilters,
     CompanySearchPage,
     DatasetStatus,
     LobbyistRecord,
+    LobbyistSearchFilters,
     LobbyistSearchPage,
     RegistryQueryService,
 )
@@ -23,16 +24,29 @@ from .settings import settings
 
 READ_ONLY = ToolAnnotations(read_only_hint=True, open_world_hint=False)
 
-Query = Annotated[
+CompanyQuery = Annotated[
     str,
     Field(
         max_length=200,
-        description="Case-insensitive name/firm text, or an exact registry number.",
+        description=(
+            "Optional case-insensitive literal substring searched across the current company "
+            "name, current director names, and previous names, or an exact company number. "
+            "Results say which fields matched. Use filters for multiple people or constraints."
+        ),
+        examples=["Jack Harrhy", "Softspark", "99837"],
     ),
 ]
-Status = Annotated[
-    str | None,
-    Field(max_length=100, description="Case-insensitive exact registry status."),
+LobbyistQuery = Annotated[
+    str,
+    Field(
+        max_length=200,
+        description=(
+            "Optional case-insensitive literal substring searched across the contact, firm, "
+            "client, and in-house lobbyist names, or an exact registration number. Results "
+            "say which fields matched."
+        ),
+        examples=["Atlantic", "Rhonda Tulk-Lane", "IHL-867-1005"],
+    ),
 ]
 Limit = Annotated[
     int,
@@ -55,8 +69,15 @@ def create_mcp_server(service: RegistryQueryService) -> MCPServer[None]:
             "registries for Newfoundland and Labrador. This server reads a mirror, "
             "never the live registry. Results can be stale and should be verified "
             "against the authoritative Government of Newfoundland and Labrador CADO "
-            "site for legal or time-sensitive use. Search tools return bounded pages; "
-            "use next_offset to continue. All tools are read-only."
+            "site for legal or time-sensitive use. Start with a search tool, then use its "
+            "record URL or corresponding get tool for complete details. The free-text query "
+            "searches identity fields and returns query_matches explaining each hit. Use the "
+            "typed filters object for precise or multi-value searches: different filter fields "
+            "are ANDed, registry-value lists accept any listed value, and text filters explicitly "
+            "choose match='any' or match='all'. Search tools return bounded pages; use "
+            "next_offset to continue. Registry roles must be reported literally: a current "
+            "director or lobbyist is not evidence that someone founded or owns an organization. "
+            "All tools are read-only."
         ),
         website_url=settings.public_base_url,
         version=__version__,
@@ -64,24 +85,42 @@ def create_mcp_server(service: RegistryQueryService) -> MCPServer[None]:
 
     @server.tool(title="Search companies", annotations=READ_ONLY)
     def search_companies(
-        query: Query = "",
-        corporation_type: CorporationType | None = None,
-        status: Status = None,
-        category: Category | None = None,
+        query: CompanyQuery = "",
+        filters: Annotated[
+            CompanySearchFilters | None,
+            Field(
+                description=(
+                    "Optional structured filters. Different fields are ANDed. For example, to "
+                    "find a company listing both people as current directors, pass "
+                    "{'director_names': {'terms': ['Jack Harrhy', 'Martin Whelan'], "
+                    "'match': 'all'}}."
+                ),
+                examples=[
+                    {
+                        "director_names": {
+                            "terms": ["Jack Harrhy", "Martin Whelan"],
+                            "match": "all",
+                        },
+                        "statuses": ["Active"],
+                    }
+                ],
+            ),
+        ] = None,
         limit: Limit = 20,
         offset: Offset = 0,
     ) -> CompanySearchPage:
         """Search mirrored companies, condominiums, and co-operatives.
 
-        ``query`` matches a substring of the current name or an exact company
-        number. Company numbers are strings and can contain legacy suffixes
-        such as ``2D``. Omit query to browse using filters.
+        Use ``query`` for one known company, person, previous name, or number.
+        Use ``filters`` to combine registry facts, including multiple current
+        directors with explicit any/all semantics, classifications, dates, and
+        locations. Company numbers are strings and may have suffixes like ``2D``.
+        Director matches describe the registry's current-director listing; they
+        do not establish founders, owners, or historical directors.
         """
         return service.search_companies(
             query=query,
-            corporation_type=corporation_type,
-            status=status,
-            category=category,
+            filters=filters,
             limit=limit,
             offset=offset,
         )
@@ -105,21 +144,38 @@ def create_mcp_server(service: RegistryQueryService) -> MCPServer[None]:
 
     @server.tool(title="Search lobbyists", annotations=READ_ONLY)
     def search_lobbyists(
-        query: Query = "",
-        lobbyist_type: LobbyistType | None = None,
-        status: Status = None,
+        query: LobbyistQuery = "",
+        filters: Annotated[
+            LobbyistSearchFilters | None,
+            Field(
+                description=(
+                    "Optional structured filters. Different fields are ANDed; nested text and "
+                    "activity filters state whether any or all terms are required."
+                ),
+                examples=[
+                    {
+                        "subject_matters": {
+                            "terms": ["Economic Development"],
+                            "match": "any",
+                            "expects_to_lobby": True,
+                        },
+                        "statuses": ["Approved"],
+                    }
+                ],
+            ),
+        ] = None,
         limit: Limit = 20,
         offset: Offset = 0,
     ) -> LobbyistSearchPage:
         """Search mirrored lobbyist registrations.
 
-        ``query`` matches a substring of the contact or firm name, or an exact
-        registration number such as ``IHL-867-1005``. Omit query to browse.
+        Use ``query`` for one known person, firm, client, or registration number.
+        Use ``filters`` to combine people, organizations, subjects, targets,
+        techniques, status, dates, and locations. Omit both to browse.
         """
         return service.search_lobbyists(
             query=query,
-            lobbyist_type=lobbyist_type,
-            status=status,
+            filters=filters,
             limit=limit,
             offset=offset,
         )

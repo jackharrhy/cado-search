@@ -37,6 +37,9 @@ def seeded_db(tmp_path: Path) -> Path:
     ]:
         html = (COMPANIES / filename).read_text(encoding="utf-8")
         ingest_one_html(conn, "company", key, html)
+    conn.execute(
+        "INSERT INTO company_previous_names VALUES ('50000', 1, 'CONNAIGRE COMMUNITY NET', DATE '2001-01-01')"
+    )
     lobbyist_html = (FIXTURES / "lobbyist_summary_IHL-867-1005.html").read_text(encoding="utf-8")
     ingest_one_html(conn, "lobbyist", "IHL-867-1005", lobbyist_html)
     now = datetime.now(UTC)

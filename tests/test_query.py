@@ -7,7 +7,17 @@ from pathlib import Path
 import pytest
 
 from cado.models import Category, CorporationType, LobbyistType
-from cado.query import RegistryQueryService
+from cado.query import (
+    AddressFilter,
+    CompanySearchFilters,
+    DateRange,
+    LobbyingActivityFilter,
+    LobbyistAddressFilter,
+    LobbyistSearchFilters,
+    MatchMode,
+    RegistryQueryService,
+    TextTermsFilter,
+)
 
 
 @pytest.fixture
@@ -23,13 +33,31 @@ class TestCompanyQueries:
         assert by_name.total == 1
         assert by_name.items[0].number == "99000"
         assert by_name.items[0].record_url == "https://cado.example/company/99000"
+        assert by_name.items[0].query_matches[0].field == "current_name"
+        assert by_name.items[0].query_matches[0].value == "Irving Energy Inc."
         assert by_number.items[0].name == "CONNAIGRE NET INCORPORATED"
+        assert by_number.items[0].query_matches[0].field == "company_number"
+
+    def test_search_by_affiliated_person_and_previous_name(
+        self, service: RegistryQueryService
+    ) -> None:
+        by_director = service.search_companies(query="Mark Courtney")
+        by_previous_name = service.search_companies(query="community net")
+
+        assert by_director.total == 1
+        assert by_director.items[0].number == "50000"
+        assert by_director.items[0].query_matches[0].field == "current_director"
+        assert by_director.items[0].query_matches[0].value == "Mark Courtney"
+        assert by_previous_name.total == 1
+        assert by_previous_name.items[0].query_matches[0].field == "previous_name"
 
     def test_filters_and_paginates_stably(self, service: RegistryQueryService) -> None:
         companies = service.search_companies(
-            corporation_type=CorporationType.COMPANY,
-            category=Category.EXTRA_PROVINCIAL,
-            status="active",
+            filters=CompanySearchFilters(
+                corporation_types=[CorporationType.COMPANY],
+                categories=[Category.EXTRA_PROVINCIAL],
+                statuses=["active"],
+            ),
             limit=1,
         )
 
@@ -45,6 +73,54 @@ class TestCompanyQueries:
         assert {item.number for item in first.items}.isdisjoint(
             item.number for item in second.items
         )
+
+    def test_compound_company_filters_have_explicit_all_semantics(
+        self, service: RegistryQueryService
+    ) -> None:
+        page = service.search_companies(
+            filters=CompanySearchFilters(
+                director_names=TextTermsFilter(
+                    terms=["Mark Courtney", "Steven Crewe"],
+                    match=MatchMode.ALL,
+                ),
+                incorporation_date=DateRange.model_validate(
+                    {"date_from": "2004-01-01", "date_to": "2004-12-31"}
+                ),
+                registered_office=AddressFilter(city="Harbour Breton"),
+                has_current_directors=True,
+            )
+        )
+        missing_one = service.search_companies(
+            filters=CompanySearchFilters(
+                director_names=TextTermsFilter(
+                    terms=["Mark Courtney", "Nobody Here"],
+                    match=MatchMode.ALL,
+                )
+            )
+        )
+
+        assert page.total == 1
+        assert page.items[0].number == "50000"
+        assert page.items[0].query_matches == []
+        assert missing_one.total == 0
+
+    def test_company_relation_and_text_filters(self, service: RegistryQueryService) -> None:
+        previous = service.search_companies(
+            filters=CompanySearchFilters(
+                previous_names=TextTermsFilter(terms=["community"]),
+                has_previous_names=True,
+            )
+        )
+        historical = service.search_companies(
+            filters=CompanySearchFilters(
+                historical_remarks=TextTermsFilter(terms=["cancellation filed"]),
+                has_historical_remarks=True,
+                mailing_address=AddressFilter(city="Montreal"),
+            )
+        )
+
+        assert [item.number for item in previous.items] == ["50000"]
+        assert [item.number for item in historical.items] == ["2D"]
 
     def test_detail_reconstructs_relations_and_provenance(
         self, service: RegistryQueryService
@@ -86,8 +162,10 @@ class TestLobbyistQueries:
     def test_search_filters_and_detail(self, service: RegistryQueryService) -> None:
         page = service.search_lobbyists(
             query="Atlantic",
-            lobbyist_type=LobbyistType.IN_HOUSE,
-            status="approved",
+            filters=LobbyistSearchFilters(
+                lobbyist_types=[LobbyistType.IN_HOUSE],
+                statuses=["approved"],
+            ),
         )
 
         assert page.total == 1
@@ -101,6 +179,38 @@ class TestLobbyistQueries:
         assert "lblOrgMembership" in record.raw_fields
         assert record.subject_matters[0].name == "Economic Development"
         assert record.in_house_lobbyists[0].name == "Tulk-Lane, Rhonda"
+
+    def test_searches_affiliated_people_and_filters_lobbying_activity(
+        self, service: RegistryQueryService
+    ) -> None:
+        by_person = service.search_lobbyists(query="Tulk-Lane, Rhonda")
+        filtered = service.search_lobbyists(
+            filters=LobbyistSearchFilters(
+                subject_matters=LobbyingActivityFilter(
+                    terms=["Economic Development", "Energy"],
+                    match=MatchMode.ALL,
+                    has_lobbied=False,
+                    expects_to_lobby=True,
+                ),
+                lobbying_targets=LobbyingActivityFilter(terms=["Office of the Premier"]),
+                contact_address=LobbyistAddressFilter(city="Holyrood"),
+                effective_date=DateRange.model_validate({"date_from": "2026-01-01"}),
+                has_in_house_lobbyists=True,
+            )
+        )
+        wrong_flag = service.search_lobbyists(
+            filters=LobbyistSearchFilters(
+                subject_matters=LobbyingActivityFilter(
+                    terms=["Economic Development"],
+                    has_lobbied=True,
+                )
+            )
+        )
+
+        assert by_person.total == 1
+        assert by_person.items[0].query_matches[0].field == "in_house_lobbyist"
+        assert filtered.total == 1
+        assert wrong_flag.total == 0
 
 
 def test_dataset_status_reports_each_registry(service: RegistryQueryService) -> None:

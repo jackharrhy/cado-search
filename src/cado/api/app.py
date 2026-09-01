@@ -20,7 +20,7 @@ from fastapi.templating import Jinja2Templates
 from mcp.server.transport_security import TransportSecuritySettings
 
 from ..mcp import create_mcp_server
-from ..query import RegistryQueryService
+from ..query import CompanySearchFilters, RegistryQueryService
 from ..settings import settings
 from ..snapshot import SnapshotValidationError, validate_database
 
@@ -122,7 +122,7 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     @app.get("/search/companies", response_class=HTMLResponse)
     def search_companies(
         request: Request,
-        q: str = Query("", description="Free text matched against company name"),
+        q: str = Query("", description="Company name, number, current director, or previous name"),
         corp_type: str = Query("", description="Filter by corporation_type"),
         status: str = Query("", description="Filter by status"),
         limit: int = Query(50, ge=1, le=50),
@@ -130,8 +130,12 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     ) -> HTMLResponse:
         page = query_service.search_companies(
             query=q,
-            corporation_type=corp_type or None,
-            status=status or None,
+            filters=CompanySearchFilters.model_validate(
+                {
+                    "corporation_types": [corp_type] if corp_type else None,
+                    "statuses": [status] if status else None,
+                }
+            ),
             limit=limit,
         )
         return templates.TemplateResponse(

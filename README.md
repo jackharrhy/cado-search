@@ -22,7 +22,27 @@ database.
 
 Tools: `search_companies`, `get_company`,
 `search_lobbyists`, `get_lobbyist`, and `get_dataset_status`. Searches return
-up to 50 records and use `next_offset` for pagination.
+up to 50 records and use `next_offset` for pagination. Each search tool has a
+broad `query` for names, affiliated people, and exact registry numbers, plus a
+typed `filters` object for classifications, dates, locations, and related
+records. Text filters use explicit `any` or `all` matching:
+
+```json
+{
+  "filters": {
+    "director_names": {
+      "terms": ["Jack Harrhy", "Martin Whelan"],
+      "match": "all"
+    },
+    "statuses": ["Active"]
+  }
+}
+```
+
+Different filter fields are combined with AND. Search results include
+`query_matches` so callers can distinguish a company-name match from, for
+example, a current-director match. Registry roles are literal: a director
+listing does not by itself establish that someone founded or owns a company.
 
 Public endpoint: `https://cado.jackharrhy.dev/mcp`. This is a periodically
 refreshed mirror; check the government registry for legal or time-sensitive
