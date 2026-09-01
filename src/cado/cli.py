@@ -8,6 +8,7 @@ import logging
 import shutil
 import sys
 from collections.abc import Iterable
+from datetime import timedelta
 from pathlib import Path
 from typing import Annotated
 
@@ -24,6 +25,7 @@ from rich.progress import (
 )
 from rich.table import Table
 
+from .container import supervise
 from .db import connect, ingest_companies, ingest_lobbyists
 from .refresh import run_refresh
 from .scrape.companies import CompanyScraper, ScrapeStats
@@ -432,6 +434,40 @@ def refresh(
 # ---------------------------------------------------------------------------
 # serve
 # ---------------------------------------------------------------------------
+
+
+@app.command()
+def run(
+    host: Annotated[str, typer.Option(help="Interface for the web server")] = "0.0.0.0",
+    port: Annotated[int, typer.Option(help="Port for the web server")] = 8000,
+    refresh_hours: Annotated[
+        float,
+        typer.Option(help="Refresh when the published snapshot reaches this age"),
+    ] = settings.refresh_interval_hours,
+    retry_hours: Annotated[
+        float,
+        typer.Option(help="Delay before retrying a failed scheduled refresh"),
+    ] = settings.refresh_retry_hours,
+    verbose: Annotated[bool, typer.Option("-v", "--verbose")] = False,
+) -> None:
+    """Run the server and keep its snapshot refreshed."""
+    _configure_logging(verbose)
+    command = (sys.executable, "-m", "cado.cli")
+    try:
+        result = asyncio.run(
+            supervise(
+                db_path=settings.duckdb_path,
+                server_command=(*command, "serve", "--host", host, "--port", str(port)),
+                refresh_command=(*command, "refresh"),
+                refresh_interval=timedelta(hours=refresh_hours),
+                retry_interval=timedelta(hours=retry_hours),
+            )
+        )
+    except ValueError as exc:
+        console.print(f"[red bold]Cannot start:[/] {exc}")
+        raise typer.Exit(code=1) from exc
+    if result:
+        raise typer.Exit(code=result)
 
 
 @app.command()

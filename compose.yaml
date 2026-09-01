@@ -3,8 +3,8 @@
 # Pulls the published image from ghcr.io by default. Override `image:` or set
 # `build: .` if you want to use a local build instead.
 #
-#   docker compose run --rm refresh  # first fetch, build, validation, and publish
-#   docker compose up -d             # start only after a snapshot exists
+#   docker compose up -d
+#   docker compose logs -f cado
 
 services:
   cado:
@@ -15,22 +15,14 @@ services:
     ports:
       - "${CADO_PORT:-8000}:8000"
     volumes:
-      - cado-data:/data:ro
+      - cado-data:/data
     environment:
       # Override any setting via env vars; see src/cado/settings.py.
       CADO_DATA_DIR: /data
+      # Refresh snapshots when they reach this age (30 days by default).
+      # CADO_REFRESH_INTERVAL_HOURS: "720"
       # CADO_MAX_CONCURRENCY: "24"
       # CADO_REQUESTS_PER_SECOND: "20"
-
-  # Same image, but this one-shot job is the only process allowed to write data.
-  refresh:
-    image: ${CADO_IMAGE:-ghcr.io/jackharrhy/cado-search:latest}
-    profiles: ["tools"]
-    command: ["refresh"]
-    volumes:
-      - cado-data:/data
-    environment:
-      CADO_DATA_DIR: /data
 
 volumes:
   cado-data:

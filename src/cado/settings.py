@@ -63,6 +63,10 @@ class Settings(BaseSettings):
     requests_per_second: float = 20.0
     max_concurrency: int = 16
 
+    # The managed container refreshes based on the published snapshot age.
+    refresh_interval_hours: float = Field(default=24 * 30, gt=0)
+    refresh_retry_hours: float = Field(default=24, gt=0)
+
     # Connection / timeout knobs (seconds).
     connect_timeout: float = 10.0
     read_timeout: float = 30.0

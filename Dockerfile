@@ -8,7 +8,8 @@
 #   the package source. It runs as a non-root user and exposes the HTMX UI
 #   on port 8000.
 #
-# Data lives under /data (mount a volume there); CADO_DATA_DIR points to it.
+# Data lives under /data. The managed command serves the current snapshot and
+# runs refreshes in the background.
 
 ARG PYTHON_VERSION=3.12
 ARG UV_VERSION=0.8.15
@@ -82,12 +83,12 @@ USER cado
 
 EXPOSE 8000
 
-# Readiness checks the schema and published snapshot metadata.
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+# A first boot may spend several hours fetching its initial snapshot.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=4h --retries=3 \
     CMD python -c "import urllib.request, sys; \
 sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3).status == 200 else 1)" \
     || exit 1
 
-# tini handles PID 1 / signal forwarding so Ctrl-C on `docker run` exits cleanly.
-ENTRYPOINT ["/usr/bin/tini", "--", "cado"]
-CMD ["serve", "--host", "0.0.0.0", "--port", "8000"]
+# tini is PID 1; `cado run` supervises the web server and refresh worker.
+ENTRYPOINT ["/usr/bin/tini", "-g", "--", "cado"]
+CMD ["run"]

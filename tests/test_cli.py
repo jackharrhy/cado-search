@@ -59,6 +59,14 @@ def test_info_with_no_data(runner: CliRunner) -> None:
     assert "does not exist yet" in result.output
 
 
+def test_run_rejects_non_positive_refresh_interval(runner: CliRunner) -> None:
+    from cado.cli import app as fresh_app
+
+    result = runner.invoke(fresh_app, ["run", "--refresh-hours", "0"])
+    assert result.exit_code == 1
+    assert "intervals must be positive" in result.output
+
+
 def test_ingest_companies_end_to_end(runner: CliRunner, _isolated_data_dir: Path) -> None:
     # Drop a fixture into the cache, then run ``cado ingest companies``.
     cache = HtmlCache(registry="companies")
