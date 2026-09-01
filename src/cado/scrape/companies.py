@@ -270,11 +270,11 @@ class CompanyScraper:
         * ``CompanyNameNumberSearch.aspx`` + a result table -> multi-row (hits)
         * ``CompanyNameNumberSearch.aspx`` + no table       -> miss (empty)
 
-        We *always* save the response HTML when the upstream gave us a detail
-        page. The upstream produces an empty ``lblCompanyName`` ~0.05% of the
-        time for unknown reasons; ingest preserves those records with a blank
-        name. Any page that's genuinely malformed ends up in the ``ingest_log``
-        table with ``parsed_ok=false``.
+        We save a detail response only after extracting its canonical company
+        number. The upstream occasionally renders a transient, entirely blank
+        detail shell; leaving that seed incomplete makes the resumable fetch
+        retry it. A present number with an empty ``lblCompanyName`` is valid
+        and is preserved for ingest.
         """
         key = str(number)
 
@@ -301,11 +301,19 @@ class CompanyScraper:
             # Singleton path. The upstream's canonical id may differ from the
             # search number (e.g. searching '2D' resolves to itself, but a
             # suffix-less search for '2' lands on '2D' on some legacy paths).
-            # Best-effort extract; fall back to the search number.
-            saved_id = extract_company_number(response.text) or key
-            self.cache.write(saved_id, response.text, kind="detail")
-            self.cache.mark_completed(key, outcome="detail", detail_keys=[saved_id])
-            return ScrapeOutcome(number=number, kind="detail", ids_saved=[saved_id])
+            saved_id = extract_company_number(response.text)
+            if saved_id is None:
+                outcome = ScrapeOutcome(
+                    number=number,
+                    kind="error",
+                    error=f"detail response for {key} has no company number",
+                )
+                self._append_error_log(outcome)
+            else:
+                self.cache.write(saved_id, response.text, kind="detail")
+                self.cache.mark_completed(key, outcome="detail", detail_keys=[saved_id])
+                outcome = ScrapeOutcome(number=number, kind="detail", ids_saved=[saved_id])
+            return outcome
 
         # Otherwise we're back on the search form; figure out which sub-case.
         hits = parse_company_search_results(response.text)
@@ -346,9 +354,17 @@ class CompanyScraper:
                 )
                 self._append_error_log(outcome)
                 return outcome
-            # Trust the hit's number rather than re-extracting; this matches
-            # the search row's reported id and is correct even if the detail
-            # page has an empty lblCompanyNumber.
+            if extract_company_number(drill_resp.text) is None:
+                outcome = ScrapeOutcome(
+                    number=number,
+                    kind="error",
+                    ids_saved=saved_ids,
+                    error=f"drill {hit.number} detail response has no company number",
+                )
+                self._append_error_log(outcome)
+                return outcome
+            # Trust the search hit's number as the cache key. The detail's
+            # canonical number is validated above and is used during ingest.
             self.cache.write(hit.number, drill_resp.text, kind="detail")
             saved_ids.append(hit.number)
 

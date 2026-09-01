@@ -137,6 +137,7 @@ def _make_scraper(
         concurrency=concurrency,
         rate_per_second=1000,
         skip_cached=skip_cached,
+        error_log_path=cache.root.parent / "scrape_errors_companies.jsonl",
     )
     fake = FakeCADOClient(responses)
     scraper._clients = [fake] * concurrency  # type: ignore[assignment]
@@ -196,21 +197,45 @@ async def test_singleton_caches_even_when_lblCompanyName_is_empty(
     assert cache.read("12345") == broken_html
 
 
-async def test_singleton_falls_back_to_search_number_when_id_missing(
+async def test_singleton_without_company_number_remains_retryable(
     cache: HtmlCache,
 ) -> None:
-    """If the upstream responds with a CompanyDetails.aspx URL but the body
-    has no usable id at all, save under the search number rather than dropping."""
-    broken_html = "<html><body>upstream had a bad day</body></html>"
+    """A transient blank detail shell must not poison a resumable fetch."""
+    blank_html = (
+        "<html><body>"
+        '<span id="lblCompanyName"></span>'
+        '<span id="lblCompanyNumber"></span>'
+        '<span id="lblCorporationType"></span>'
+        "</body></html>"
+    )
     scraper, _ = _make_scraper(
         cache,
-        {"99999": {"kind": "detail", "text": broken_html}},
+        {"99999": {"kind": "detail", "text": blank_html}},
     )
     outcomes = [o async for o in scraper.scrape_numbers([99999])]
 
-    assert outcomes[0].kind == "detail"
-    assert outcomes[0].ids_saved == ["99999"]
-    assert cache.exists("99999", kind="detail")
+    assert outcomes[0].kind == "error"
+    assert outcomes[0].error == "detail response for 99999 has no company number"
+    assert not cache.exists("99999", kind="detail")
+    assert not cache.is_completed("99999")
+
+    valid_html = (
+        "<html><body>"
+        '<span id="lblCompanyName">Recovered Company</span>'
+        '<span id="lblCompanyNumber">99999</span>'
+        '<span id="lblCorporationType">Company</span>'
+        "</body></html>"
+    )
+    retry, fake = _make_scraper(
+        cache,
+        {"99999": {"kind": "detail", "text": valid_html}},
+    )
+    retry_outcome = await anext(retry.scrape_numbers([99999]))
+
+    assert retry_outcome.kind == "detail"
+    assert retry_outcome.ids_saved == ["99999"]
+    assert fake.calls[0][0] == "search"
+    assert cache.is_completed("99999")
 
 
 async def test_empty_response_records_no_cache(cache: HtmlCache) -> None:
@@ -265,6 +290,37 @@ async def test_multi_row_list_drills_into_each_suffix(cache: HtmlCache) -> None:
     # under the registry root.)
     detail_keys = set(cache.iter_keys(kind="detail"))
     assert len(detail_keys) >= 1  # at least one detail page persisted
+
+
+async def test_multi_row_blank_detail_remains_retryable(cache: HtmlCache) -> None:
+    list_html = fx("n_1_multirow.html")
+    targets = [f"rptCompanyNameSearchResults$_ctl{i}$lbtCompanyNumber" for i in (1, 2, 3, 4)]
+    detail_url = "https://cado.eservices.gov.nl.ca/Company/CompanyDetails.aspx"
+    detail_text = {target: fx("c_2D_extraprov_old.html") for target in targets}
+    detail_text[targets[1]] = (
+        "<html><body>"
+        '<span id="lblCompanyName"></span>'
+        '<span id="lblCompanyNumber"></span>'
+        '<span id="lblCorporationType"></span>'
+        "</body></html>"
+    )
+    scraper, _ = _make_scraper(
+        cache,
+        {
+            "1": {
+                "kind": "list",
+                "text": list_html,
+                "drill": dict.fromkeys(targets, detail_url),
+                "drill_text": detail_text,
+            }
+        },
+    )
+
+    outcome = await anext(scraper.scrape_numbers([1]))
+
+    assert outcome.kind == "error"
+    assert "has no company number" in (outcome.error or "")
+    assert not cache.is_completed("1")
 
 
 async def test_interrupted_multi_row_is_retried_until_complete(cache: HtmlCache) -> None:
