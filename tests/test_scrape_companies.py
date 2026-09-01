@@ -176,8 +176,8 @@ async def test_singleton_caches_even_when_lblCompanyName_is_empty(
 ) -> None:
     """Regression: a CompanyDetails.aspx response with an empty
     ``lblCompanyName`` used to raise CompanyParseError mid-scrape and the
-    HTML was discarded. We now save the HTML unconditionally so the ingest
-    step (which still uses the strict parser) can surface the issue."""
+    HTML was discarded. We save the HTML unconditionally so ingest can
+    preserve the record with the blank value."""
     broken_html = (
         "<html><body>"
         '<span id="lblCompanyName"></span>'

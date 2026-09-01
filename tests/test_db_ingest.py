@@ -71,6 +71,25 @@ class TestIngestOneCompany:
         assert row[3] == "Active"
         assert row[4] == date(2004, 7, 23)
 
+    def test_preserves_empty_company_name(
+        self, conn: duckdb.DuckDBPyConnection, cache: HtmlCache
+    ) -> None:
+        cache.write(
+            "69756",
+            "<html><body>"
+            '<span id="lblCompanyName"></span>'
+            '<span id="lblCompanyNumber">69756</span>'
+            '<span id="lblCorporationType">Company</span>'
+            "</body></html>",
+        )
+
+        results = list(ingest_companies(conn, cache))
+
+        assert results[0].parsed_ok is True
+        assert conn.execute(
+            "SELECT number, name FROM companies WHERE number = '69756'"
+        ).fetchone() == ("69756", "")
+
     def test_directors_become_rows(self, conn: duckdb.DuckDBPyConnection, cache: HtmlCache) -> None:
         cache.write("50000", fx("c_50000_active_with_directors.html"))
         list(ingest_companies(conn, cache))

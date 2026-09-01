@@ -60,6 +60,29 @@ def test_build_validate_and_publish_snapshot(tmp_path: Path) -> None:
     assert (tmp_path / "snapshots" / report.snapshot_id / "html").is_dir()
 
 
+def test_blank_company_name_can_publish(tmp_path: Path) -> None:
+    live = tmp_path / "cado.duckdb"
+    workspace = _ready_workspace(tmp_path)
+    workspace.company_cache().write(
+        "69756",
+        "<html><body>"
+        '<span id="lblCompanyName"></span>'
+        '<span id="lblCompanyNumber">69756</span>'
+        '<span id="lblCorporationType">Company</span>'
+        "</body></html>",
+    )
+
+    build_snapshot(workspace, live_db_path=live)
+    publish_snapshot(workspace, live_db_path=live)
+
+    conn = duckdb.connect(str(live), read_only=True)
+    assert conn.execute("SELECT number, name FROM companies WHERE number = '69756'").fetchone() == (
+        "69756",
+        "",
+    )
+    conn.close()
+
+
 def test_refresh_orchestrator_resumes_fetched_workspace_without_network(tmp_path: Path) -> None:
     workspace = _ready_workspace(tmp_path)
     snapshot_id = workspace.manifest.snapshot_id

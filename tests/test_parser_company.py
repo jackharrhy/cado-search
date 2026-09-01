@@ -241,6 +241,22 @@ def test_parse_company_details_rejects_non_detail_page() -> None:
         parse_company_details("<html><body>not a detail page</body></html>")
 
 
+def test_parse_company_details_preserves_empty_name() -> None:
+    html = (
+        "<html><body>"
+        '<span id="lblCompanyName"></span>'
+        '<span id="lblCompanyNumber">69756</span>'
+        '<span id="lblCorporationType">Company</span>'
+        "</body></html>"
+    )
+
+    company = parse_company_details(html)
+
+    assert company.number == "69756"
+    assert company.name == ""
+    assert company.corporation_type is CorporationType.COMPANY
+
+
 # ---------------------------------------------------------------------------
 # extract_company_number (lightweight id-only extractor for the scrape path)
 # ---------------------------------------------------------------------------

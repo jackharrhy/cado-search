@@ -271,10 +271,10 @@ class CompanyScraper:
         * ``CompanyNameNumberSearch.aspx`` + no table       -> miss (empty)
 
         We *always* save the response HTML when the upstream gave us a detail
-        page, even if the body is malformed (e.g. an empty ``lblCompanyName``,
-        which the upstream produces ~0.05% of the time for unknown reasons).
-        Re-parsing happens at ingest time and any record that's still bad
-        ends up in the ``ingest_log`` table with ``parsed_ok=false``.
+        page. The upstream produces an empty ``lblCompanyName`` ~0.05% of the
+        time for unknown reasons; ingest preserves those records with a blank
+        name. Any page that's genuinely malformed ends up in the ``ingest_log``
+        table with ``parsed_ok=false``.
         """
         key = str(number)
 

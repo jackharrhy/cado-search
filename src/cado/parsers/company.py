@@ -7,7 +7,7 @@ absent on some records. The strategy is therefore:
 
 * prefer ``soup.find(id=...)`` over CSS / XPath — ids are stable
 * normalise whitespace aggressively (strip + collapse) on every text read
-* treat any blank string as ``None`` so downstream code doesn't have to care
+* treat optional blank strings as ``None`` so downstream code doesn't have to care
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ def extract_company_number(html: str) -> str | None:
 
     Useful for the scraper, which only needs to know what filename to save
     under -- it shouldn't refuse to cache HTML just because some other field
-    (e.g. ``lblCompanyName``) is empty on a malformed upstream response.
+    (e.g. ``lblCompanyName``) is empty on an upstream response.
     Returns ``None`` if the page isn't a details page at all.
     """
     m = _COMPANY_NUMBER_SPAN_RX.search(html)
@@ -119,9 +119,9 @@ def parse_company_details(html: str) -> Company:
     if not number:
         raise CompanyParseError("lblCompanyNumber is empty")
 
+    # A small number of otherwise valid upstream records have a present but
+    # empty name label. Keep them addressable by company number.
     name = labels.get("lblCompanyName") or ""
-    if not name:
-        raise CompanyParseError("lblCompanyName is empty")
 
     corp_type_text = labels.get("lblCorporationType", "")
     try:

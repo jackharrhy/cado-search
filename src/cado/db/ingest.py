@@ -631,13 +631,19 @@ def _read_csv_call(csv_path: Path, columns: list[str], table: str) -> str:
     Python's ``csv.writer`` is RFC 4180 by default: quote when needed,
     escape internal quotes by doubling them. We mirror that on the read
     side with ``quote='"', escape='"'``.
+
+    Company names are the one required string the upstream sometimes returns
+    blank. ``force_not_null`` preserves that blank as ``''`` instead of having
+    DuckDB interpret it as ``NULL`` and reject it against the schema.
     """
+    force_not_null = ", force_not_null=['name']" if table == "companies" else ""
     return (
         f"read_csv("
         f"'{csv_path}', "
         f"header=true, "
         f"quote='\"', escape='\"', "
         f"columns={_csv_columns_decl(columns, table)}"
+        f"{force_not_null}"
         f")"
     )
 
