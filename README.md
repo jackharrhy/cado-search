@@ -115,5 +115,5 @@ parsers. They do not create a snapshot that `cado serve` will accept.
 
 ## License
 
-The data is © Government of Newfoundland and Labrador. The code is
-[unlicensed](https://unlicense.org/). Do whatever you want with it.
+The data is © Government of Newfoundland and Labrador. The code is available
+under the [MIT License](LICENSE).

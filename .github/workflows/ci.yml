@@ -100,7 +100,7 @@ jobs:
           labels: |
             org.opencontainers.image.title=cado
             org.opencontainers.image.description=Searchable snapshot of the NL CADO public registries.
-            org.opencontainers.image.licenses=Unlicense
+            org.opencontainers.image.licenses=MIT
 
       - name: Build image and publish only after tests
         id: build

@@ -3,6 +3,8 @@ name = "cado"
 version = "0.1.0"
 description = "Search UI and MCP server for a local snapshot of Newfoundland and Labrador's CADO registries"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     { name = "Jack Arthur Harrhy", email = "me@jackharrhy.com" }
 ]
