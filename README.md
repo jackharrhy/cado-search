@@ -8,15 +8,15 @@ web UI and read-only, stateless MCP endpoint.
 
 ```bash
 uv sync
-uv run cado refresh  # first run takes roughly 2–3 hours
-uv run cado serve
+uv run cado run  # first run takes roughly 2–3 hours
 ```
 
 Open `http://127.0.0.1:8000`. MCP is at `http://127.0.0.1:8000/mcp`; run
 `uv run cado info` to inspect the snapshot.
 
-Refreshes resume after interruption. A new database is validated before it
-replaces the current one, so a failed refresh does not affect the server.
+`cado run` starts the server and refreshes the snapshot every 30 days. Refreshes
+resume after interruption, and a failed refresh does not replace the current
+database.
 
 ## MCP
 
@@ -34,16 +34,13 @@ Image: `ghcr.io/jackharrhy/cado-search`.
 
 ```bash
 docker compose pull
-docker compose run --rm refresh
 docker compose up -d
+docker compose logs -f cado
 ```
 
-The server mounts `/data` read-only. To update it, run:
-
-```bash
-docker compose run --rm refresh
-docker compose run --rm cado check
-```
+The container creates its first snapshot before starting the server, then keeps
+serving while later snapshots are built. Set `CADO_REFRESH_INTERVAL_HOURS` to
+change the 30-day interval.
 
 For public hosting, put port 8000 behind TLS. Set `CADO_PUBLIC_BASE_URL`,
 `CADO_MCP_ALLOWED_HOSTS`, and `CADO_MCP_ALLOWED_ORIGINS`, and back up `/data`.
