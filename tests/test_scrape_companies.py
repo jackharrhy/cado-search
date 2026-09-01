@@ -73,6 +73,7 @@ class FakeCADOClient:
         extra_fields: dict[str, str] | None = None,
         button: tuple[str, str] | None = None,
         referer: str | None = None,
+        viewstate: object | None = None,
     ) -> _Response:
         number = (extra_fields or {}).get("txtCompanyNumber", "")
         self.calls.append((event_target or "search", dict(extra_fields or {})))
@@ -264,6 +265,38 @@ async def test_multi_row_list_drills_into_each_suffix(cache: HtmlCache) -> None:
     # under the registry root.)
     detail_keys = set(cache.iter_keys(kind="detail"))
     assert len(detail_keys) >= 1  # at least one detail page persisted
+
+
+async def test_interrupted_multi_row_is_retried_until_complete(cache: HtmlCache) -> None:
+    list_html = fx("n_1_multirow.html")
+    targets = [f"rptCompanyNameSearchResults$_ctl{i}$lbtCompanyNumber" for i in (1, 2, 3, 4)]
+    detail_url = "https://cado.eservices.gov.nl.ca/Company/CompanyDetails.aspx"
+    first_urls = dict.fromkeys(targets, detail_url)
+    first_urls[targets[1]] = "https://cado.eservices.gov.nl.ca/Company/CompanyNameNumberSearch.aspx"
+    detail_text = {target: fx("c_2D_extraprov_old.html") for target in targets}
+    first, _ = _make_scraper(
+        cache,
+        {"1": {"kind": "list", "text": list_html, "drill": first_urls, "drill_text": detail_text}},
+    )
+    first_outcome = await anext(first.scrape_numbers([1]))
+    assert first_outcome.kind == "error"
+    assert not cache.is_completed("1")
+
+    second, fake = _make_scraper(
+        cache,
+        {
+            "1": {
+                "kind": "list",
+                "text": list_html,
+                "drill": dict.fromkeys(targets, detail_url),
+                "drill_text": detail_text,
+            }
+        },
+    )
+    second_outcome = await anext(second.scrape_numbers([1]))
+    assert second_outcome.kind == "hits"
+    assert cache.is_completed("1")
+    assert fake.calls[0][0] == "search"
 
 
 async def test_skip_cached_avoids_extra_requests(cache: HtmlCache) -> None:

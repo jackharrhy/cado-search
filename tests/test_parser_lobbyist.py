@@ -66,6 +66,19 @@ class TestLobbyistDetail:
         # the typed model doesn't expose.
         assert "lblRegistrationNumber" in reg.raw_fields
         assert "lblOrgMembership" in reg.raw_fields
+        assert "rptSubjectMatter__ctl1_lblSubjectMatter" in reg.raw_fields
+
+    def test_repeater_tables_are_typed(self, reg):
+        assert [item.name for item in reg.subject_matters][:2] == [
+            "Economic Development",
+            "Education and Training",
+        ]
+        assert reg.subject_matters[0].has_lobbied is False
+        assert reg.subject_matters[0].expects_to_lobby is True
+        assert reg.lobbying_targets[0].name == "Business"
+        assert reg.communication_techniques[0].name == "Arranging One or More Meetings"
+        assert reg.in_house_lobbyists[0].name == "Tulk-Lane, Rhonda"
+        assert reg.in_house_lobbyists[0].effective_date == date(2026, 5, 7)
 
 
 def test_lobbyist_detail_rejects_unrelated_page() -> None:

@@ -13,7 +13,6 @@ absent on some records. The strategy is therefore:
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Final
 
@@ -33,54 +32,6 @@ from ..models import (
 
 class CompanyParseError(RuntimeError):
     """Raised when a page we expected to be a CompanyDetails.aspx isn't."""
-
-
-# ---------------------------------------------------------------------------
-# Page classification
-# ---------------------------------------------------------------------------
-
-
-@dataclass(frozen=True, slots=True)
-class SearchResponse:
-    """The high-level shape of a response to a name/number search.
-
-    The upstream behaves three ways depending on how many records match
-    a number search:
-
-    * exactly one record  -> 302 to ``/Company/CompanyDetails.aspx`` (``details``)
-    * 2+ records          -> 200, the form is re-rendered with a result list (``hits``)
-    * zero records        -> 200, the form is re-rendered, no result list (``empty``)
-    """
-
-    kind: str  # "details" | "hits" | "empty"
-    details: Company | None = None
-    hits: CompanySearchResult | None = None
-
-
-def parse_search_response(html: str, *, final_url: str | None = None) -> SearchResponse:
-    """Classify and parse whichever shape of search response we received.
-
-    Parameters
-    ----------
-    html:
-        The body of the final HTTP response after following redirects.
-    final_url:
-        The URL of that final response. Used to disambiguate: when the upstream
-        sends us to ``CompanyDetails.aspx`` the parser uses the detail path;
-        otherwise we look for a result table in the form page.
-    """
-    if final_url and "CompanyDetails.aspx" in final_url:
-        return SearchResponse(kind="details", details=parse_company_details(html))
-
-    soup = BeautifulSoup(html, "lxml")
-    table = soup.find(id="tableSearchResults")
-    if table is None:
-        return SearchResponse(kind="empty")
-
-    hits = parse_company_search_results(html, _soup=soup)
-    if not hits.hits:
-        return SearchResponse(kind="empty")
-    return SearchResponse(kind="hits", hits=hits)
 
 
 _COMPANY_NUMBER_SPAN_RX: Final = re.compile(
@@ -286,7 +237,10 @@ def parse_company_search_results(
     hits: list[CompanySearchHit] = []
     for anchor in table.find_all("a", id=_ROW_NUM_RX):
         assert isinstance(anchor, Tag)
-        m = _ROW_NUM_RX.search(anchor.get("id", ""))
+        anchor_id = anchor.get("id")
+        if not isinstance(anchor_id, str):
+            continue
+        m = _ROW_NUM_RX.search(anchor_id)
         if not m:
             continue
         row_index = int(m.group(1))
@@ -326,19 +280,6 @@ def parse_company_search_results(
 # ---------------------------------------------------------------------------
 # Sub-section parsers
 # ---------------------------------------------------------------------------
-
-
-def _parse_address(soup: BeautifulSoup, *, prefix: str) -> Address:
-    return Address(
-        contact=_text(soup, f"lbl{prefix}Contact"),
-        line1=_text(soup, f"lbl{prefix}Address1"),
-        line2=_text(soup, f"lbl{prefix}Address2"),
-        line3=_text(soup, f"lbl{prefix}Address3"),
-        city=_text(soup, f"lbl{prefix}City"),
-        province_state=_text(soup, f"lbl{prefix}ProvinceState"),
-        country=_text(soup, f"lbl{prefix}Country"),
-        postal_zip=_text(soup, f"lbl{prefix}PostalZipCode"),
-    )
 
 
 def _parse_directors(soup: BeautifulSoup) -> list[Director]:
@@ -441,10 +382,6 @@ def _text(soup: BeautifulSoup, element_id: str) -> str | None:
     return _collapse(el.get_text()) or None
 
 
-def _date(soup: BeautifulSoup, element_id: str) -> date | None:
-    return _to_date(_text(soup, element_id))
-
-
 def _to_date(value: str | None) -> date | None:
     if not value:
         return None
@@ -454,7 +391,3 @@ def _to_date(value: str | None) -> date | None:
         except ValueError:
             continue
     return None
-
-
-def _collect_simple_fields(soup: BeautifulSoup) -> dict[str, str | None]:
-    return {field: _text(soup, label) for label, field in _SIMPLE_FIELDS.items()}

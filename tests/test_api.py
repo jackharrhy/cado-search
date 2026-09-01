@@ -12,36 +12,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from cado.api import create_app
-from cado.db import connect, ingest_one_html
-
-FIXTURES = Path(__file__).parent / "fixtures"
-COMPANIES = FIXTURES / "companies"
-
-
-def _seed_db(path: Path) -> None:
-    """Build a tiny but representative DuckDB at ``path``."""
-    conn = connect(path)
-    # 5 companies covering each type / status diversity.
-    for key, fname in [
-        ("50000", "c_50000_active_with_directors.html"),
-        ("73498", "c_73498_condo.html"),
-        ("69963", "c_69963_coop_cancelled.html"),
-        ("2D", "c_2D_extraprov_old.html"),
-        ("99000", "c_99000_extraprov_active.html"),
-    ]:
-        html = (COMPANIES / fname).read_text()
-        ingest_one_html(conn, "company", key, html)
-    # 1 lobbyist
-    lob_html = (FIXTURES / "lobbyist_summary_IHL-867-1005.html").read_text()
-    ingest_one_html(conn, "lobbyist", "IHL-867-1005", lob_html)
-    conn.close()
+from cado.db import connect
 
 
 @pytest.fixture
-def client(tmp_path: Path):
-    db_path = tmp_path / "cado.duckdb"
-    _seed_db(db_path)
-    app = create_app(db_path)
+def client(seeded_db: Path):
+    app = create_app(seeded_db)
     # Use as a context manager so the lifespan handler runs.
     with TestClient(app) as c:
         yield c
@@ -56,6 +32,14 @@ class TestIndex:
         assert '>1</span><span class="label">Condominiums' in response.text
         assert '>1</span><span class="label">Co-operatives' in response.text
         assert '>1</span><span class="label">Lobbyists' in response.text
+        assert "test-snapshot" in response.text
+
+    def test_health_endpoints(self, client: TestClient) -> None:
+        assert client.get("/health/live").json() == {"status": "ok"}
+        assert client.get("/health/ready").json() == {
+            "status": "ok",
+            "snapshot_id": "test-snapshot",
+        }
 
 
 class TestCompanySearch:
@@ -113,6 +97,11 @@ class TestCompanyDetail:
         response = client.get("/company/9999999")
         assert response.status_code == 404
 
+    def test_404_does_not_reflect_unescaped_path_input(self, client: TestClient) -> None:
+        response = client.get("/company/%3Cimg%20src=x%20onerror=alert(1)%3E")
+        assert response.status_code == 404
+        assert "<img" not in response.text
+
 
 class TestLobbyistEndpoints:
     def test_search(self, client: TestClient) -> None:
@@ -125,6 +114,8 @@ class TestLobbyistEndpoints:
         assert response.status_code == 200
         assert "Rhonda Tulk-Lane" in response.text
         assert "Atlantic Chamber of Commerce" in response.text
+        assert "Economic Development" in response.text
+        assert "Tulk-Lane, Rhonda" in response.text
 
     def test_detail_404(self, client: TestClient) -> None:
         response = client.get("/lobbyist/NOPE-000-000")
@@ -136,4 +127,11 @@ class TestStartupRequiresDatabase:
         app = create_app(tmp_path / "missing.duckdb")
         # Lifespan errors surface on first request via TestClient.
         with pytest.raises(RuntimeError, match="does not exist"), TestClient(app):
+            pass
+
+    def test_rejects_database_without_published_metadata(self, tmp_path: Path) -> None:
+        db_path = tmp_path / "unpublished.duckdb"
+        connect(db_path).close()
+        app = create_app(db_path)
+        with pytest.raises(RuntimeError, match="no metadata"), TestClient(app):
             pass

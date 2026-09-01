@@ -19,7 +19,6 @@ from cado.parsers import (
     CompanyParseError,
     parse_company_details,
     parse_company_search_results,
-    parse_search_response,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures" / "companies"
@@ -230,28 +229,6 @@ class TestSearchResultsMultiRow:
     def test_corporation_types_present(self, results):
         # Every row should carry the discriminator.
         assert all(h.corporation_type for h in results.hits)
-
-
-class TestParseSearchResponseDispatch:
-    """parse_search_response classifies based on final URL + page contents."""
-
-    def test_details_branch(self):
-        resp = parse_search_response(
-            fx("c_50000_active_with_directors.html"),
-            final_url="https://cado.eservices.gov.nl.ca/Company/CompanyDetails.aspx",
-        )
-        assert resp.kind == "details"
-        assert resp.details is not None
-        assert resp.details.number == "50000"
-
-    def test_hits_branch(self):
-        resp = parse_search_response(
-            fx("n_1_multirow.html"),
-            final_url="https://cado.eservices.gov.nl.ca/Company/CompanyNameNumberSearch.aspx",
-        )
-        assert resp.kind == "hits"
-        assert resp.hits is not None
-        assert resp.hits.total == 4
 
 
 # ---------------------------------------------------------------------------

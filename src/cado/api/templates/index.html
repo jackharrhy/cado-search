@@ -7,6 +7,10 @@
   <div class="count-card"><span class="number">{{ counts.cooperatives }}</span><span class="label">Co-operatives</span></div>
   <div class="count-card"><span class="number">{{ counts.lobbyists }}</span><span class="label">Lobbyists</span></div>
 </section>
+<p class="result-meta">
+  Snapshot <span class="num">{{ snapshot.snapshot_id }}</span> fetched from the source
+  {{ snapshot.source_fetched_at }} and published {{ snapshot.published_at }}.
+</p>
 
 <section class="search-section">
   <h2>Companies / Condominiums / Co-operatives</h2>

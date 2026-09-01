@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
+import shutil
 import sys
+from collections.abc import Iterable
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -21,9 +25,14 @@ from rich.progress import (
 from rich.table import Table
 
 from .db import connect, ingest_companies, ingest_lobbyists
+from .refresh import run_refresh
 from .scrape.companies import CompanyScraper, ScrapeStats
 from .scrape.lobbyists import LobbyistScraper
 from .settings import settings
+from .snapshot import (
+    SnapshotError,
+    validate_database,
+)
 from .storage import HtmlCache
 
 app = typer.Typer(
@@ -76,7 +85,7 @@ def scrape_companies_cmd(
     """Enumerate company numbers from ``start`` to ``stop`` and cache each detail page."""
     _configure_logging(verbose)
 
-    async def _run() -> None:
+    async def _run() -> ScrapeStats:
         stats = ScrapeStats()
         async with CompanyScraper(
             concurrency=concurrency,
@@ -100,8 +109,11 @@ def scrape_companies_cmd(
                         ),
                     )
         _print_company_stats(stats)
+        return stats
 
-    asyncio.run(_run())
+    stats = asyncio.run(_run())
+    if stats.errors:
+        raise typer.Exit(code=1)
 
 
 def _print_company_stats(stats: ScrapeStats) -> None:
@@ -147,7 +159,7 @@ def scrape_retry_errors_cmd(
     if error_log.exists():
         error_log.unlink()
 
-    async def _run() -> None:
+    async def _run() -> ScrapeStats:
         stats = ScrapeStats()
         async with CompanyScraper(
             concurrency=concurrency,
@@ -171,8 +183,11 @@ def scrape_retry_errors_cmd(
                         ),
                     )
         _print_company_stats(stats)
+        return stats
 
-    asyncio.run(_run())
+    stats = asyncio.run(_run())
+    if stats.errors:
+        raise typer.Exit(code=1)
 
 
 # ---------------------------------------------------------------------------
@@ -196,7 +211,7 @@ def scrape_lobbyists_cmd(
     """Dump every registration in the lobbyist registry to the on-disk cache."""
     _configure_logging(verbose)
 
-    async def _run() -> None:
+    async def _run() -> int:
         async with LobbyistScraper(
             rate_per_second=rate,
             concurrency=concurrency,
@@ -207,6 +222,9 @@ def scrape_lobbyists_cmd(
             console.print(
                 f"Index built: [bold]{len(entries)}[/] entries (upstream says total = {total})."
             )
+            if total is None or len(entries) != total:
+                console.print("[red]Lobbyist index is incomplete; refusing to fetch details.[/]")
+                return 1
 
             details = 0
             skipped = 0
@@ -235,8 +253,11 @@ def scrape_lobbyists_cmd(
                 f"skipped [magenta]{skipped}[/] already-cached, "
                 f"[red]{errors}[/] errors."
             )
+            return errors
 
-    asyncio.run(_run())
+    errors = asyncio.run(_run())
+    if errors:
+        raise typer.Exit(code=1)
 
 
 # ---------------------------------------------------------------------------
@@ -270,6 +291,8 @@ def ingest_companies_cmd(
             )
     console.print(f"Ingested [bold green]{n_ok}[/] companies, [red]{n_err}[/] errors.")
     conn.close()
+    if n_err:
+        raise typer.Exit(code=1)
 
 
 @ingest_app.command("lobbyists")
@@ -298,6 +321,8 @@ def ingest_lobbyists_cmd(
             )
     console.print(f"Ingested [bold green]{n_ok}[/] lobbyists, [red]{n_err}[/] errors.")
     conn.close()
+    if n_err:
+        raise typer.Exit(code=1)
 
 
 @ingest_app.command("all")
@@ -310,8 +335,117 @@ def ingest_all_cmd(
 
 
 # ---------------------------------------------------------------------------
+# production snapshot refresh
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def refresh(
+    start: Annotated[int, typer.Option("--start", help="First company number")] = 1,
+    stop: Annotated[
+        int,
+        typer.Option(
+            "--stop",
+            help="Exclusive company-number ceiling; increase if the tail is not empty",
+        ),
+    ] = 105_000,
+    discovery_tail: Annotated[
+        int,
+        typer.Option(help="Required consecutive empty company seeds at the range tail"),
+    ] = 1_000,
+    concurrency: Annotated[int, typer.Option(help="Concurrent upstream workers")] = (
+        settings.max_concurrency
+    ),
+    rate: Annotated[float, typer.Option(help="Global upstream requests/second cap")] = (
+        settings.requests_per_second
+    ),
+    max_count_drop: Annotated[
+        float,
+        typer.Option(help="Largest fraction each registry may shrink before publication fails"),
+    ] = 0.20,
+    verbose: Annotated[bool, typer.Option("-v", "--verbose")] = False,
+) -> None:
+    """Fetch, rebuild, validate, and atomically publish one complete snapshot.
+
+    Interrupted runs resume from ``data/refresh``. The currently served DuckDB
+    is never opened for writing and is replaced only after every validation
+    succeeds.
+    """
+    _configure_logging(verbose)
+    progress = _progress(total=stop - start)
+    company_task = progress.add_task("fetching company snapshot", total=stop - start)
+    lobbyist_task = progress.add_task("fetching lobbyist snapshot", total=1, visible=False)
+
+    def company_progress(stats: ScrapeStats) -> None:
+        progress.update(
+            company_task,
+            completed=stats.attempted,
+            description=(
+                f"fetching companies [green]ok {stats.details}[/] "
+                f"[blue]list {stats.multi_hit_pages}[/] "
+                f"[yellow]empty {stats.empty}[/] "
+                f"[magenta]resumed {stats.cached}[/] [red]err {stats.errors}[/]"
+            ),
+        )
+
+    def lobbyist_progress(completed: int, total: int, errors: int) -> None:
+        progress.update(
+            lobbyist_task,
+            visible=True,
+            total=total,
+            completed=completed,
+            description=f"fetching lobbyists [red]err {errors}[/]",
+        )
+
+    try:
+        with progress:
+            result = run_refresh(
+                data_dir=settings.data_dir,
+                live_db_path=settings.duckdb_path,
+                company_start=start,
+                company_stop=stop,
+                discovery_tail=discovery_tail,
+                concurrency=concurrency,
+                rate=rate,
+                max_count_drop_fraction=max_count_drop,
+                on_workspace=lambda manifest: console.print(
+                    f"[cyan]Snapshot {manifest.snapshot_id}[/]"
+                ),
+                on_company=company_progress,
+                on_lobbyist=lobbyist_progress,
+            )
+    except (SnapshotError, ValueError) as exc:
+        console.print(f"[red bold]Refresh failed:[/] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    if result.company_stats is not None:
+        _print_company_stats(result.company_stats)
+    report = result.report
+    console.print(
+        f"[green bold]Published snapshot {report.snapshot_id}[/] at "
+        f"{result.published_at.isoformat()} — "
+        f"{report.company_count} companies, {report.condominium_count} condominiums, "
+        f"{report.cooperative_count} co-operatives, {report.lobbyist_count} lobbyists."
+    )
+
+
+# ---------------------------------------------------------------------------
 # serve
 # ---------------------------------------------------------------------------
+
+
+@app.command()
+def check() -> None:
+    """Validate that the published snapshot is ready to serve."""
+    try:
+        manifest = validate_database(settings.duckdb_path)
+    except SnapshotError as exc:
+        console.print(f"[red bold]Snapshot is not ready:[/] {exc}")
+        raise typer.Exit(code=1) from exc
+    console.print(
+        f"[green]Snapshot {manifest.snapshot_id} is ready; "
+        f"source fetched {manifest.source_fetched_at}.[/]"
+    )
 
 
 @app.command()
@@ -331,7 +465,7 @@ def serve(
         bool, typer.Option("--reload", help="Auto-reload on code changes (dev)")
     ] = False,
 ) -> None:
-    """Serve the HTMX search UI."""
+    """Serve the HTMX search UI and Streamable HTTP MCP endpoint."""
     import uvicorn  # noqa: PLC0415 - deferred so non-serve commands don't pay the uvicorn import cost
 
     # ``cado.api:create_app`` is a factory; uvicorn calls it.
@@ -358,8 +492,17 @@ def info() -> None:
     table.add_column("count", justify="right", style="bold")
     table.add_column("details", style="dim")
 
-    company_cache = HtmlCache(registry="companies")
-    lobby_cache = HtmlCache(registry="lobbyists")
+    snapshot_manifest = None
+    if settings.duckdb_path.exists():
+        with contextlib.suppress(SnapshotError):
+            snapshot_manifest = validate_database(settings.duckdb_path)
+    html_root = settings.html_cache_dir
+    if snapshot_manifest is not None:
+        archived_html = settings.data_dir / "snapshots" / snapshot_manifest.snapshot_id / "html"
+        if archived_html.is_dir():
+            html_root = archived_html
+    company_cache = HtmlCache(root=html_root, registry="companies")
+    lobby_cache = HtmlCache(root=html_root, registry="lobbyists")
     table.add_row(
         str(
             company_cache.root.relative_to(settings.data_dir.parent)
@@ -388,9 +531,17 @@ def info() -> None:
             ("DuckDB: lobbyist_registrations", "SELECT COUNT(*) FROM lobbyist_registrations"),
             ("DuckDB: ingest_log", "SELECT COUNT(*) FROM ingest_log"),
         ]:
-            n = conn.execute(sql).fetchone()[0]
+            row = conn.execute(sql).fetchone()
+            assert row is not None
+            n = row[0]
             table.add_row(label, str(n), "")
         conn.close()
+        if snapshot_manifest is not None:
+            table.add_row(
+                "Published snapshot",
+                snapshot_manifest.snapshot_id,
+                f"source fetched {snapshot_manifest.source_fetched_at}",
+            )
     else:
         table.add_row("DuckDB", "—", f"({settings.duckdb_path} does not exist yet)")
 
@@ -406,8 +557,9 @@ clean_app = typer.Typer(
     no_args_is_help=True,
     help=(
         "Delete on-disk artifacts. Has three scopes:\n\n"
-        "- `db`    — drop just the DuckDB (rebuildable via `cado ingest all`)\n"
-        "- `cache` — drop the raw HTML cache (requires re-scraping to recover)\n"
+        "- `db`    — drop the published and previous DuckDB files\n"
+        "- `cache` — drop staged and archived raw HTML snapshots\n"
+        "- `refresh` — discard only an unfinished refresh workspace\n"
         "- `all`   — drop both"
     ),
 )
@@ -420,25 +572,22 @@ def _confirm(prompt: str, *, assume_yes: bool) -> bool:
     return typer.confirm(prompt, default=False)
 
 
-def _human_bytes(n: int) -> str:
+def _human_bytes(size: int) -> str:
+    value = float(size)
     for unit in ("B", "KB", "MB", "GB"):
-        if n < 1024:
-            return f"{n:.1f}{unit}"
-        n /= 1024  # type: ignore[assignment]
-    return f"{n:.1f}TB"
+        if value < 1024:
+            return f"{value:.1f}{unit}"
+        value /= 1024
+    return f"{value:.1f}TB"
 
 
-def _dir_summary(path: object) -> tuple[int, int]:
+def _dir_summary(path: Path) -> tuple[int, int]:
     """Return ``(file_count, total_bytes)`` under ``path`` (recursive)."""
-    import contextlib  # noqa: PLC0415
-    from pathlib import Path  # noqa: PLC0415
-
-    p = Path(str(path))
-    if not p.exists():
+    if not path.exists():
         return 0, 0
     files = 0
     size = 0
-    for entry in p.rglob("*"):
+    for entry in path.rglob("*"):
         if entry.is_file():
             files += 1
             with contextlib.suppress(OSError):
@@ -446,14 +595,23 @@ def _dir_summary(path: object) -> tuple[int, int]:
     return files, size
 
 
+def _cache_roots() -> tuple[Path, ...]:
+    return (
+        settings.html_cache_dir,
+        settings.data_dir / "refresh",
+        settings.data_dir / "snapshots",
+    )
+
+
 def _delete_duckdb() -> int:
     """Remove ``cado.duckdb`` and its sidecar WAL file. Returns bytes freed."""
-    import contextlib  # noqa: PLC0415
-
     freed = 0
     for candidate in (
         settings.duckdb_path,
         settings.duckdb_path.with_suffix(".duckdb.wal"),
+        settings.duckdb_path.with_name(
+            f"{settings.duckdb_path.stem}.previous{settings.duckdb_path.suffix}"
+        ),
     ):
         if candidate.exists():
             with contextlib.suppress(OSError):
@@ -463,13 +621,41 @@ def _delete_duckdb() -> int:
 
 
 def _delete_cache() -> tuple[int, int]:
-    """Remove the entire HTML cache directory tree. Returns (files, bytes) freed."""
-    import shutil  # noqa: PLC0415
-
-    files, size = _dir_summary(settings.html_cache_dir)
-    if settings.html_cache_dir.exists():
-        shutil.rmtree(settings.html_cache_dir)
+    """Remove legacy, staged, and archived raw HTML. Returns files and bytes."""
+    roots = _cache_roots()
+    summaries = [_dir_summary(path) for path in roots]
+    files = sum(item[0] for item in summaries)
+    size = sum(item[1] for item in summaries)
+    for path in roots:
+        if path.exists():
+            shutil.rmtree(path)
     return files, size
+
+
+def _all_cache_summary() -> tuple[int, int]:
+    summaries = [_dir_summary(path) for path in _cache_roots()]
+    return sum(item[0] for item in summaries), sum(item[1] for item in summaries)
+
+
+@clean_app.command("refresh")
+def clean_refresh_cmd(
+    yes: Annotated[
+        bool,
+        typer.Option("-y", "--yes", help="Skip the confirmation prompt"),
+    ] = False,
+) -> None:
+    """Discard an unfinished refresh without touching the served snapshot."""
+    refresh_dir = settings.data_dir / "refresh"
+    files, size = _dir_summary(refresh_dir)
+    if not refresh_dir.exists():
+        console.print("[yellow]Nothing to do: no refresh is in progress.[/]")
+        return
+    console.print(f"About to discard [bold]{refresh_dir}[/] ({files} files, {_human_bytes(size)}).")
+    if not _confirm("Continue?", assume_yes=yes):
+        console.print("[yellow]Aborted.[/]")
+        raise typer.Exit(code=1)
+    shutil.rmtree(refresh_dir)
+    console.print("Discarded unfinished refresh; the published snapshot is unchanged.")
 
 
 @clean_app.command("db")
@@ -479,18 +665,16 @@ def clean_db_cmd(
         typer.Option("-y", "--yes", help="Skip the confirmation prompt"),
     ] = False,
 ) -> None:
-    """Delete the DuckDB file. The on-disk HTML cache is untouched.
-
-    After this you can rebuild the database from the cache with
-    `cado ingest all` — no upstream traffic required.
-    """
+    """Delete the published and previous DuckDB files; raw snapshots remain."""
     if not settings.duckdb_path.exists():
         console.print(f"[yellow]Nothing to do: {settings.duckdb_path} does not exist.[/]")
         return
 
     size = settings.duckdb_path.stat().st_size
     console.print(f"About to delete [bold]{settings.duckdb_path}[/] ({_human_bytes(size)}).")
-    console.print("[dim]The HTML cache is kept; `cado ingest all` will rebuild the database.[/]")
+    console.print(
+        "[dim]Raw snapshot archives are kept; `cado refresh` publishes a new database.[/]"
+    )
     if not _confirm("Continue?", assume_yes=yes):
         console.print("[yellow]Aborted.[/]")
         raise typer.Exit(code=1)
@@ -506,12 +690,12 @@ def clean_cache_cmd(
         typer.Option("-y", "--yes", help="Skip the confirmation prompt"),
     ] = False,
 ) -> None:
-    """Delete the raw HTML cache. The DuckDB is untouched.
+    """Delete staged and archived raw HTML. The DuckDB is untouched.
 
     This is the destructive option: scraped HTML is the only source of truth
     for re-parsing. After this you must re-scrape to recover.
     """
-    n, size = _dir_summary(settings.html_cache_dir)
+    n, size = _all_cache_summary()
     if n == 0:
         console.print(f"[yellow]Nothing to do: {settings.html_cache_dir} is empty or missing.[/]")
         return
@@ -538,8 +722,8 @@ def clean_all_cmd(
         typer.Option("-y", "--yes", help="Skip the confirmation prompt"),
     ] = False,
 ) -> None:
-    """Delete the DuckDB *and* the HTML cache. Wipes all on-disk data."""
-    n_files, cache_size = _dir_summary(settings.html_cache_dir)
+    """Delete DuckDB files and every staged/archived raw snapshot."""
+    n_files, cache_size = _all_cache_summary()
     db_size = settings.duckdb_path.stat().st_size if settings.duckdb_path.exists() else 0
     total = cache_size + db_size
 
@@ -586,8 +770,11 @@ def _progress(*, total: int) -> Progress:
     )
 
 
-def _count(it: object) -> int:
-    return sum(1 for _ in it)  # type: ignore[arg-type]
+def _count(it: Iterable[object]) -> int:
+    count = 0
+    for _ in it:
+        count += 1
+    return count
 
 
 def main() -> None:

@@ -16,9 +16,9 @@ The scraper keeps a separate ``CADOClient`` per worker so their server-side
 session state can't interleave. A shared :class:`~cado.http.RateLimiter` and
 :class:`asyncio.Semaphore` enforce the global cap across all workers.
 
-Resumption is "natural": if ``HtmlCache.exists(N)`` then skip; the scrape log
-adds an authoritative "we tried N and got nothing" record so misses aren't
-retried either.
+Resumption uses an append-only completion journal. A search seed is marked
+complete only after every detail page from that response is durably cached;
+empty results are journaled too.
 """
 
 from __future__ import annotations
@@ -31,6 +31,8 @@ from contextlib import AsyncExitStack
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from types import TracebackType
+from typing import Literal
 
 from ..http import CADOClient, RateLimiter
 from ..parsers import extract_company_number, parse_company_search_results
@@ -57,7 +59,7 @@ class ScrapeOutcome:
     """The result of trying to scrape a single integer search number."""
 
     number: int
-    kind: str  # "detail" | "hits" | "empty" | "cached" | "error"
+    kind: Literal["detail", "hits", "empty", "cached", "error"]
     ids_saved: list[str] = field(default_factory=list)
     error: str | None = None
     attempted_at: datetime = field(default_factory=lambda: datetime.now(UTC))
@@ -140,9 +142,14 @@ class CompanyScraper:
             self._clients.append(client)
         return self
 
-    async def __aexit__(self, *exc_info: object) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
         if self._stack is not None:
-            await self._stack.__aexit__(*exc_info)
+            await self._stack.__aexit__(exc_type, exc, tb)
             self._stack = None
         self._clients.clear()
 
@@ -271,9 +278,7 @@ class CompanyScraper:
         """
         key = str(number)
 
-        if self.skip_cached and (
-            self.cache.exists(key, kind="detail") or self.cache.exists(key, kind="list")
-        ):
+        if self.skip_cached and self.cache.is_completed(key):
             log.debug("skip cached number=%s", number)
             return ScrapeOutcome(number=number, kind="cached")
 
@@ -299,11 +304,13 @@ class CompanyScraper:
             # Best-effort extract; fall back to the search number.
             saved_id = extract_company_number(response.text) or key
             self.cache.write(saved_id, response.text, kind="detail")
+            self.cache.mark_completed(key, outcome="detail", detail_keys=[saved_id])
             return ScrapeOutcome(number=number, kind="detail", ids_saved=[saved_id])
 
         # Otherwise we're back on the search form; figure out which sub-case.
         hits = parse_company_search_results(response.text)
         if not hits.hits:
+            self.cache.mark_completed(key, outcome="empty")
             return ScrapeOutcome(number=number, kind="empty")
 
         # Multi-row: save the list page, then drill into each suffixed row.
@@ -317,8 +324,6 @@ class CompanyScraper:
         # doesn't bleed in -- otherwise the second drill 302s to ErrorPage.
         list_viewstate = client.last_viewstate
         for hit in hits.hits:
-            if list_viewstate is not None:
-                client._last_viewstate = list_viewstate
             drill_resp = await client.post_back(
                 SEARCH_URL,
                 event_target=f"rptCompanyNameSearchResults$_ctl{hit.row_index}$lbtCompanyNumber",
@@ -327,19 +332,25 @@ class CompanyScraper:
                     "txtNameKeywords2": "",
                     "txtCompanyNumber": key,
                 },
+                viewstate=list_viewstate,
             )
             if "CompanyDetails.aspx" not in str(drill_resp.url):
-                log.warning(
-                    "drill %s[_ctl%s] did not land on details (url=%s)",
-                    key,
-                    hit.row_index,
-                    drill_resp.url,
+                outcome = ScrapeOutcome(
+                    number=number,
+                    kind="error",
+                    ids_saved=saved_ids,
+                    error=(
+                        f"drill {key}[_ctl{hit.row_index}] did not land on details "
+                        f"(url={drill_resp.url})"
+                    ),
                 )
-                continue
+                self._append_error_log(outcome)
+                return outcome
             # Trust the hit's number rather than re-extracting; this matches
             # the search row's reported id and is correct even if the detail
             # page has an empty lblCompanyNumber.
             self.cache.write(hit.number, drill_resp.text, kind="detail")
             saved_ids.append(hit.number)
 
+        self.cache.mark_completed(key, outcome="hits", detail_keys=saved_ids[1:])
         return ScrapeOutcome(number=number, kind="hits", ids_saved=saved_ids)

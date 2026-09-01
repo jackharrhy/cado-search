@@ -32,9 +32,26 @@ class Settings(BaseSettings):
 
     base_url: str = "https://cado.eservices.gov.nl.ca"
     user_agent: str = (
-        "cado-scraper/0.1 (+https://github.com/jackharrhy/cado; "
+        "cado-scraper/0.1 (+https://github.com/jackharrhy/cado-search; "
         "public-data archival; contact: me@jackharrhy.com)"
     )
+
+    # Public application URLs and MCP transport security.  The host/origin
+    # defaults cover local development, Starlette's test client, and the
+    # intended public endpoint without disabling DNS-rebinding protection.
+    public_base_url: str = "https://cado.jackharrhy.dev"
+    mcp_allowed_hosts: list[str] = [
+        "127.0.0.1:*",
+        "localhost:*",
+        "testserver",
+        "cado.jackharrhy.dev",
+        "cado.jackharrhy.dev:*",
+    ]
+    mcp_allowed_origins: list[str] = [
+        "http://127.0.0.1:*",
+        "http://localhost:*",
+        "https://cado.jackharrhy.dev",
+    ]
 
     # Rate limiting.
     #

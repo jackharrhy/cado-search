@@ -31,6 +31,8 @@ import logging
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from types import TracebackType
+from typing import Literal
 
 from ..http import CADOClient, RateLimiter
 from ..models import LobbyistSearchHit
@@ -66,7 +68,7 @@ class LobbyistOutcome:
     """The result of attempting to fetch one record's detail page."""
 
     registration_number: str
-    kind: str  # "detail" | "skipped" | "error"
+    kind: Literal["detail", "skipped", "error"]
     error: str | None = None
     attempted_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
@@ -108,9 +110,14 @@ class LobbyistScraper:
         await self._index_client.__aenter__()
         return self
 
-    async def __aexit__(self, *exc: object) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
         if self._index_client is not None:
-            await self._index_client.__aexit__(*exc)
+            await self._index_client.__aexit__(exc_type, exc, tb)
             self._index_client = None
 
     # ---- public API ---------------------------------------------------
@@ -277,15 +284,12 @@ class LobbyistScraper:
                 return
 
             for entry in entries:
-                # Reset the client's stored viewstate to the page-N capture
-                # before each drill so a previous drill's response (which
-                # came from lobbySummary.aspx) doesn't bleed in.
-                client._last_viewstate = page_viewstate
                 try:
                     response = await client.post_back(
                         SEARCH_URL,
                         event_target=(f"rptSearchResults$_ctl{entry.row_index}$lbtRegNum"),
                         extra_fields=_SEARCH_ALL_FIELDS,
+                        viewstate=page_viewstate,
                     )
                 except Exception as exc:
                     log.exception(

@@ -195,6 +195,22 @@ class LobbyistSearchHit(BaseModel):
     status: str | None = None
 
 
+class LobbyingActivity(BaseModel):
+    """One subject, target, or communication technique from a registration."""
+
+    name: str
+    has_lobbied: bool | None = None
+    expects_to_lobby: bool | None = None
+
+
+class InHouseLobbyist(BaseModel):
+    """A named in-house lobbyist attached to an organisation registration."""
+
+    name: str
+    effective_date: date | None = None
+    inactive_date: date | None = None
+
+
 class LobbyistRegistration(BaseModel):
     """A parsed ``lobbySummary.aspx`` page.
 
@@ -228,5 +244,10 @@ class LobbyistRegistration(BaseModel):
     organization_description: str | None = None
     organization_membership: str | None = None
 
-    # Everything else we extracted from labels, untyped.
+    subject_matters: list[LobbyingActivity] = Field(default_factory=list)
+    lobbying_targets: list[LobbyingActivity] = Field(default_factory=list)
+    communication_techniques: list[LobbyingActivity] = Field(default_factory=list)
+    in_house_lobbyists: list[InHouseLobbyist] = Field(default_factory=list)
+
+    # Everything else we extracted from simple and repeater labels, untyped.
     raw_fields: dict[str, str] = Field(default_factory=dict)
