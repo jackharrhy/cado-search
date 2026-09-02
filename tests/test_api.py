@@ -119,6 +119,14 @@ class TestIndex:
         )
         assert not re.search(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", response.text)
 
+    def test_sort_indicators_use_active_ascii_arrows(self, client: TestClient) -> None:
+        stylesheet = client.get("/static/style.css").text
+
+        assert 'th[aria-sort="none"] .sort-indicator' not in stylesheet
+        assert 'content: "^"' in stylesheet
+        assert 'content: "v"' in stylesheet
+        assert not any(symbol in stylesheet for symbol in ("↕", "↑", "↓"))
+
     def test_health_endpoints(self, client: TestClient) -> None:
         assert client.get("/health/live").json() == {"status": "ok"}
         assert client.get("/health/ready").json() == {
