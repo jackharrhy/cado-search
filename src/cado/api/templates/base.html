@@ -8,17 +8,25 @@
   <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
 </head>
 <body>
-  <header>
-    <h1><a href="/">CADO Search</a></h1>
-    <p class="tagline">
-      An unofficial, faster mirror of the Government of Newfoundland and Labrador's
-      <a href="https://cado.eservices.gov.nl.ca/" target="_blank" rel="noopener">Companies and Deeds Online</a> registries.
-    </p>
+  <header class="site-header">
+    <div class="site-intro">
+      <h1><a href="/">CADO Search</a></h1>
+      <p class="tagline">
+        An unofficial, faster mirror of the Government of Newfoundland and Labrador's
+        <a href="https://cado.eservices.gov.nl.ca/" target="_blank" rel="noopener">Companies and Deeds Online</a> registries.
+      </p>
+    </div>
+    <nav class="registry-tabs" aria-label="Registry">
+      <a href="/"
+         {% if request.url.path == "/" or request.url.path.startswith("/company/") %}class="active" aria-current="page"{% endif %}>Companies</a>
+      <a href="/lobbyists"
+         {% if request.url.path == "/lobbyists" or request.url.path.startswith("/lobbyist/") %}class="active" aria-current="page"{% endif %}>Lobbyists</a>
+    </nav>
   </header>
   <main>
     {% block content %}{% endblock %}
   </main>
-  <footer>
+  <footer class="site-footer">
     <p>
       All data is publicly available from <code>cado.eservices.gov.nl.ca</code>.
       This mirror exists to make it searchable. For authoritative information,

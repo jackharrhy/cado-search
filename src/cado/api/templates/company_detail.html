@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ c.name }} — CADO Search{% endblock %}
+{% block title %}{{ c.name }} - CADO Search{% endblock %}
 
 {% block content %}
 <p><a href="/">&larr; Back to search</a></p>
@@ -16,13 +16,13 @@
   <section class="grid">
     <dl>
       <dt>Number</dt><dd class="num">{{ c.number }}</dd>
-      <dt>Filing type</dt><dd>{{ c.filing_type or "—" }}</dd>
-      <dt>Business type</dt><dd>{{ c.business_type or "—" }}</dd>
-      <dt>Incorporation jurisdiction</dt><dd>{{ c.incorporation_jurisdiction or "—" }}</dd>
-      <dt>Incorporation date</dt><dd>{{ c.incorporation_date or "—" }}</dd>
-      <dt>Registration date</dt><dd>{{ c.registration_date or "—" }}</dd>
-      <dt>Last annual return</dt><dd>{{ c.last_annual_return or "—" }}</dd>
-      <dt>Min / max directors</dt><dd>{{ c.min_max_directors or "—" }}</dd>
+      <dt>Filing type</dt><dd>{{ c.filing_type or "-" }}</dd>
+      <dt>Business type</dt><dd>{{ c.business_type or "-" }}</dd>
+      <dt>Incorporation jurisdiction</dt><dd>{{ c.incorporation_jurisdiction or "-" }}</dd>
+      <dt>Incorporation date</dt><dd>{{ c.incorporation_date or "-" }}</dd>
+      <dt>Registration date</dt><dd>{{ c.registration_date or "-" }}</dd>
+      <dt>Last annual return</dt><dd>{{ c.last_annual_return or "-" }}</dd>
+      <dt>Min / max directors</dt><dd>{{ c.min_max_directors or "-" }}</dd>
     </dl>
     {% if c.additional_info %}
     <aside class="additional-info">
@@ -75,7 +75,7 @@
     <h3>Previous names</h3>
     <ul>
       {% for previous in c.previous_names %}
-      <li>{{ previous.name }}{% if previous.effective_date %} <span class="muted">— effective {{ previous.effective_date }}</span>{% endif %}</li>
+      <li>{{ previous.name }}{% if previous.effective_date %} <span class="muted">- effective {{ previous.effective_date }}</span>{% endif %}</li>
       {% endfor %}
     </ul>
   </section>

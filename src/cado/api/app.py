@@ -1,8 +1,8 @@
 """FastAPI app exposing the CADO search UI and MCP endpoint.
 
-The UI is intentionally plain: one main page with a search form (companies
-and lobbyists), an HTMX-powered live result list, and clean detail URLs for
-each record. No JS framework, no build step — just FastAPI + Jinja2 + HTMX.
+The UI is intentionally plain: separate company and lobbyist search pages,
+HTMX-powered live result tables, and clean detail URLs for each record. No JS
+framework or build step, just FastAPI + Jinja2 + HTMX.
 """
 
 from __future__ import annotations
@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import date
 from importlib import resources
 from pathlib import Path
 
@@ -20,7 +21,7 @@ from fastapi.templating import Jinja2Templates
 from mcp.server.transport_security import TransportSecuritySettings
 
 from ..mcp import create_mcp_server
-from ..query import CompanySearchFilters, RegistryQueryService
+from ..query import CompanySearchFilters, LobbyistSearchFilters, RegistryQueryService
 from ..settings import settings
 from ..snapshot import SnapshotValidationError, validate_database
 
@@ -104,17 +105,23 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         request: Request,
         query_service: RegistryQueryService = Depends(get_service),
     ) -> HTMLResponse:
-        status = query_service.get_dataset_status()
-        counts = {
-            "companies": status.companies.count,
-            "condominiums": status.condominiums.count,
-            "cooperatives": status.cooperatives.count,
-            "lobbyists": status.lobbyists.count,
-        }
+        context = _registry_context(query_service)
         return templates.TemplateResponse(
             request,
             "index.html",
-            {"counts": counts, "snapshot": status},
+            context,
+        )
+
+    @app.get("/lobbyists", response_class=HTMLResponse)
+    def lobbyists(
+        request: Request,
+        query_service: RegistryQueryService = Depends(get_service),
+    ) -> HTMLResponse:
+        context = _registry_context(query_service)
+        return templates.TemplateResponse(
+            request,
+            "lobbyists.html",
+            context,
         )
 
     # ---- search endpoint (HTMX target) --------------------------------
@@ -122,18 +129,47 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     @app.get("/search/companies", response_class=HTMLResponse)
     def search_companies(
         request: Request,
-        q: str = Query("", description="Company name, number, current director, or previous name"),
+        q: str = Query(
+            "",
+            max_length=200,
+            description="Company name, number, current director, or previous name",
+        ),
+        name: str = Query("", max_length=200, description="Current company name substring"),
+        number: str = Query("", max_length=32, description="Exact company number"),
         corp_type: str = Query("", description="Filter by corporation_type"),
         status: str = Query("", description="Filter by status"),
+        category: str = Query("", description="Filter by category"),
+        incorporated_from: str = Query("", max_length=10),
+        incorporated_to: str = Query("", max_length=10),
+        city: str = Query("", max_length=200),
+        province_state: str = Query("", max_length=200),
         limit: int = Query(50, ge=1, le=50),
         query_service: RegistryQueryService = Depends(get_service),
     ) -> HTMLResponse:
+        incorporation_start = _optional_date(incorporated_from, "incorporated_from")
+        incorporation_end = _optional_date(incorporated_to, "incorporated_to")
         page = query_service.search_companies(
             query=q,
             filters=CompanySearchFilters.model_validate(
                 {
+                    "current_names": {"terms": [name]} if name else None,
+                    "company_numbers": [number] if number else None,
                     "corporation_types": [corp_type] if corp_type else None,
                     "statuses": [status] if status else None,
+                    "categories": [category] if category else None,
+                    "incorporation_date": (
+                        {"date_from": incorporation_start, "date_to": incorporation_end}
+                        if incorporation_start or incorporation_end
+                        else None
+                    ),
+                    "registered_office": (
+                        {
+                            "city": city or None,
+                            "province_state": province_state or None,
+                        }
+                        if city or province_state
+                        else None
+                    ),
                 }
             ),
             limit=limit,
@@ -147,11 +183,39 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     @app.get("/search/lobbyists", response_class=HTMLResponse)
     def search_lobbyists(
         request: Request,
-        q: str = Query(""),
+        q: str = Query("", max_length=200),
+        registration_number: str = Query("", max_length=64),
+        contact_name: str = Query("", max_length=200),
+        firm_name: str = Query("", max_length=200),
+        lobbyist_type: str = Query(""),
+        status: str = Query("", max_length=100),
+        effective_from: str = Query("", max_length=10),
+        effective_to: str = Query("", max_length=10),
         limit: int = Query(50, ge=1, le=50),
         query_service: RegistryQueryService = Depends(get_service),
     ) -> HTMLResponse:
-        page = query_service.search_lobbyists(query=q, limit=limit)
+        effective_start = _optional_date(effective_from, "effective_from")
+        effective_end = _optional_date(effective_to, "effective_to")
+        page = query_service.search_lobbyists(
+            query=q,
+            filters=LobbyistSearchFilters.model_validate(
+                {
+                    "registration_numbers": (
+                        [registration_number] if registration_number else None
+                    ),
+                    "contact_names": {"terms": [contact_name]} if contact_name else None,
+                    "firm_names": {"terms": [firm_name]} if firm_name else None,
+                    "lobbyist_types": [lobbyist_type] if lobbyist_type else None,
+                    "statuses": [status] if status else None,
+                    "effective_date": (
+                        {"date_from": effective_start, "date_to": effective_end}
+                        if effective_start or effective_end
+                        else None
+                    ),
+                }
+            ),
+            limit=limit,
+        )
         return templates.TemplateResponse(
             request,
             "_lobbyist_results.html",
@@ -196,3 +260,27 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     # mount must remain last so the HTML, static, and documentation routes win.
     app.mount("/", mcp_app, name="mcp")
     return app
+
+
+def _registry_context(query_service: RegistryQueryService) -> dict[str, object]:
+    status = query_service.get_dataset_status()
+    return {
+        "counts": {
+            "companies": status.companies.count,
+            "condominiums": status.condominiums.count,
+            "cooperatives": status.cooperatives.count,
+            "lobbyists": status.lobbyists.count,
+        },
+        "snapshot": status,
+    }
+
+
+def _optional_date(value: str, field: str) -> date | None:
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422, detail=f"{field} must be a valid YYYY-MM-DD date"
+        ) from exc

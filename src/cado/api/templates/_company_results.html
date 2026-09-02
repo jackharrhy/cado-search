@@ -1,34 +1,28 @@
-<p class="result-meta">
-  {% if total == 0 %}No matches.
-  {% elif total <= limit %}Showing all {{ total }} match{{ "" if total == 1 else "es" }}.
-  {% else %}Showing first {{ limit }} of {{ total }} matches. Refine your query to narrow it.
-  {% endif %}
-</p>
-{% if rows %}
-<table class="results">
-  <thead>
-    <tr>
-      <th>Name</th>
-      <th>Number</th>
-      <th>Type</th>
-      <th>Status</th>
-      <th>Category</th>
-      <th>Incorporated</th>
-      <th>Location</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for row in rows %}
-    <tr>
-      <td><a href="/company/{{ row.number }}">{{ row.name }}</a></td>
-      <td class="num">{{ row.number }}</td>
-      <td>{{ row.corporation_type }}</td>
-      <td>{{ row.status or "" }}</td>
-      <td>{{ row.category or "" }}</td>
-      <td>{{ row.incorporation_date or "" }}</td>
-      <td>{{ row.city or "" }}{% if row.province_state %}, {{ row.province_state.strip() }}{% endif %}</td>
-    </tr>
+{% if total == 0 %}
+<tr class="empty-row"><td colspan="7"><span aria-live="polite">No matches for these filters.</span></td></tr>
+{% else %}
+<tr class="result-meta-row">
+  <td colspan="7" aria-live="polite">
+    {% if total <= limit %}Showing all {{ total }} match{{ "" if total == 1 else "es" }}.
+    {% else %}Showing first {{ limit }} of {{ total }} matches. Refine your filters to narrow it.
+    {% endif %}
+  </td>
+</tr>
+{% for row in rows %}
+<tr>
+  <td>
+    <a href="/company/{{ row.number }}">{{ row.name }}</a>
+    {% for match in row.query_matches %}
+      {% if match.field == "current_director" %}<small class="match-evidence">Director: {{ match.value }}</small>{% endif %}
+      {% if match.field == "previous_name" %}<small class="match-evidence">Previous name: {{ match.value }}</small>{% endif %}
     {% endfor %}
-  </tbody>
-</table>
+  </td>
+  <td class="num">{{ row.number }}</td>
+  <td>{{ row.corporation_type }}</td>
+  <td>{{ row.status or "" }}</td>
+  <td>{{ row.category or "" }}</td>
+  <td>{{ row.incorporation_date or "" }}</td>
+  <td>{{ row.city or "" }}{% if row.province_state %}, {{ row.province_state.strip() }}{% endif %}</td>
+</tr>
+{% endfor %}
 {% endif %}

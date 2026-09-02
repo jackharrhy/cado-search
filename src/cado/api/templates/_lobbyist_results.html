@@ -1,32 +1,27 @@
-<p class="result-meta">
-  {% if total == 0 %}No matches.
-  {% elif total <= limit %}Showing all {{ total }} match{{ "" if total == 1 else "es" }}.
-  {% else %}Showing first {{ limit }} of {{ total }} matches. Refine your query.
-  {% endif %}
-</p>
-{% if rows %}
-<table class="results">
-  <thead>
-    <tr>
-      <th>Registration #</th>
-      <th>Contact name</th>
-      <th>Firm / organisation</th>
-      <th>Type</th>
-      <th>Status</th>
-      <th>Effective date</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for row in rows %}
-    <tr>
-      <td><a href="/lobbyist/{{ row.registration_number }}">{{ row.registration_number }}</a></td>
-      <td>{{ row.contact_name or "" }}</td>
-      <td>{{ row.firm_name or "" }}</td>
-      <td>{{ row.lobbyist_type or "" }}</td>
-      <td>{{ row.status or "" }}</td>
-      <td>{{ row.effective_date or "" }}</td>
-    </tr>
+{% if total == 0 %}
+<tr class="empty-row"><td colspan="6"><span aria-live="polite">No matches for these filters.</span></td></tr>
+{% else %}
+<tr class="result-meta-row">
+  <td colspan="6" aria-live="polite">
+    {% if total <= limit %}Showing all {{ total }} match{{ "" if total == 1 else "es" }}.
+    {% else %}Showing first {{ limit }} of {{ total }} matches. Refine your filters to narrow it.
+    {% endif %}
+  </td>
+</tr>
+{% for row in rows %}
+<tr>
+  <td>
+    <a href="/lobbyist/{{ row.registration_number }}">{{ row.registration_number }}</a>
+    {% for match in row.query_matches %}
+      {% if match.field == "client_name" %}<small class="match-evidence">Client: {{ match.value }}</small>{% endif %}
+      {% if match.field == "in_house_lobbyist" %}<small class="match-evidence">In-house lobbyist: {{ match.value }}</small>{% endif %}
     {% endfor %}
-  </tbody>
-</table>
+  </td>
+  <td>{{ row.contact_name or "" }}</td>
+  <td>{{ row.firm_name or "" }}</td>
+  <td>{{ row.lobbyist_type or "" }}</td>
+  <td>{{ row.status or "" }}</td>
+  <td>{{ row.effective_date or "" }}</td>
+</tr>
+{% endfor %}
 {% endif %}

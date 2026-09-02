@@ -1,31 +1,31 @@
 {% extends "base.html" %}
-{% block title %}{{ r.registration_number }} — CADO Search{% endblock %}
+{% block title %}{{ r.registration_number }} - CADO Search{% endblock %}
 
 {% block content %}
-<p><a href="/">&larr; Back to search</a></p>
+<p><a href="/lobbyists">&larr; Back to lobbyist search</a></p>
 <article class="detail">
   <header>
     <h2>{{ r.contact_name or r.firm_name or r.registration_number }}</h2>
     <p class="subtitle">
-      <span class="pill">{{ r.lobbyist_type or "—" }}</span>
-      <span class="pill">{{ r.status or "—" }}</span>
+      <span class="pill">{{ r.lobbyist_type or "-" }}</span>
+      <span class="pill">{{ r.status or "-" }}</span>
       <span class="num">{{ r.registration_number }}</span>
     </p>
   </header>
 
   <section class="grid">
     <dl>
-      <dt>Registration date</dt><dd>{{ r.registration_date or "—" }}</dd>
-      <dt>Effective date</dt><dd>{{ r.effective_date or "—" }}</dd>
-      <dt>Amended date</dt><dd>{{ r.amended_date or "—" }}</dd>
-      <dt>Approval date</dt><dd>{{ r.approval_date or "—" }}</dd>
+      <dt>Registration date</dt><dd>{{ r.registration_date or "-" }}</dd>
+      <dt>Effective date</dt><dd>{{ r.effective_date or "-" }}</dd>
+      <dt>Amended date</dt><dd>{{ r.amended_date or "-" }}</dd>
+      <dt>Approval date</dt><dd>{{ r.approval_date or "-" }}</dd>
     </dl>
   </section>
 
   <section class="addresses">
     <div>
       <h3>Contact</h3>
-      <p><strong>{{ r.contact_name or "—" }}</strong></p>
+      <p><strong>{{ r.contact_name or "-" }}</strong></p>
       <address>
         {{ r.contact_address.line1 or "" }}<br>
         {{ r.contact_address.city or "" }}{% if r.contact_address.city %}, {% endif %}{{ r.contact_address.province_state or "" }}<br>
@@ -34,7 +34,7 @@
     </div>
     <div>
       <h3>Firm / organisation</h3>
-      <p><strong>{{ r.firm_name or "—" }}</strong></p>
+      <p><strong>{{ r.firm_name or "-" }}</strong></p>
       <address>
         {{ r.firm_address.line1 or "" }}<br>
         {{ r.firm_address.city or "" }}{% if r.firm_address.city %}, {% endif %}{{ r.firm_address.province_state or "" }}<br>
@@ -90,7 +90,7 @@
     <h3>In-house lobbyists</h3>
     <ul>
       {% for item in r.in_house_lobbyists %}
-      <li>{{ item.name }}{% if item.effective_date %} — effective {{ item.effective_date }}{% endif %}</li>
+      <li>{{ item.name }}{% if item.effective_date %} - effective {{ item.effective_date }}{% endif %}</li>
       {% endfor %}
     </ul>
   </section>

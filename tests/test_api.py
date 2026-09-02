@@ -31,8 +31,52 @@ class TestIndex:
         assert '>3</span><span class="label">Companies' in response.text
         assert '>1</span><span class="label">Condominiums' in response.text
         assert '>1</span><span class="label">Co-operatives' in response.text
-        assert '>1</span><span class="label">Lobbyists' in response.text
         assert "test-snapshot" in response.text
+
+    def test_registry_tabs_keep_each_search_on_its_own_page(self, client: TestClient) -> None:
+        companies = client.get("/")
+        lobbyists = client.get("/lobbyists")
+
+        assert 'class="active" aria-current="page">Companies' in companies.text
+        assert 'id="company-filter-form"' in companies.text
+        assert 'id="lobbyist-filter-form"' not in companies.text
+        assert 'href="/lobbyists"' in companies.text
+
+        assert lobbyists.status_code == 200
+        assert 'class="active" aria-current="page">Lobbyists' in lobbyists.text
+        assert 'id="lobbyist-filter-form"' in lobbyists.text
+        assert 'id="company-filter-form"' not in lobbyists.text
+        assert '>1</span><span class="label">Lobbyist registrations' in lobbyists.text
+
+    def test_each_visible_company_column_has_filters(self, client: TestClient) -> None:
+        response = client.get("/")
+
+        for field in (
+            "name",
+            "number",
+            "corp_type",
+            "status",
+            "category",
+            "incorporated_from",
+            "incorporated_to",
+            "city",
+            "province_state",
+        ):
+            assert f'name="{field}"' in response.text
+
+    def test_each_visible_lobbyist_column_has_filters(self, client: TestClient) -> None:
+        response = client.get("/lobbyists")
+
+        for field in (
+            "registration_number",
+            "contact_name",
+            "firm_name",
+            "lobbyist_type",
+            "status",
+            "effective_from",
+            "effective_to",
+        ):
+            assert f'name="{field}"' in response.text
 
     def test_health_endpoints(self, client: TestClient) -> None:
         assert client.get("/health/live").json() == {"status": "ok"}
@@ -70,6 +114,33 @@ class TestCompanySearch:
     def test_status_filter(self, client: TestClient) -> None:
         response = client.get("/search/companies", params={"status": "Cancelled"})
         assert "A-FRS COOPERATIVE" in response.text
+
+    @pytest.mark.parametrize(
+        ("params", "expected"),
+        [
+            ({"name": "Irving"}, "Irving Energy Inc."),
+            ({"number": "2D"}, "IMPERIAL TOBACCO LIMITED"),
+            ({"corp_type": "Condominium"}, "10 Mile Condominium Corporation"),
+            ({"category": "Extra-Provincial"}, "Irving Energy Inc."),
+            (
+                {"incorporated_from": "2025-01-01", "incorporated_to": "2025-12-31"},
+                "Irving Energy Inc.",
+            ),
+            ({"city": "Harbour Breton", "province_state": "NL"}, "CONNAIGRE NET"),
+        ],
+    )
+    def test_column_filters(
+        self,
+        client: TestClient,
+        params: dict[str, str],
+        expected: str,
+    ) -> None:
+        response = client.get("/search/companies", params=params)
+
+        assert response.status_code == 200
+        assert expected in response.text
+        assert 'class="result-meta-row"' in response.text
+        assert "<table" not in response.text
 
     def test_empty_state(self, client: TestClient) -> None:
         response = client.get("/search/companies", params={"q": "zzzzzNotARealName"})
@@ -109,6 +180,25 @@ class TestLobbyistEndpoints:
         assert response.status_code == 200
         assert "IHL-867-1005" in response.text
 
+    @pytest.mark.parametrize(
+        "params",
+        [
+            {"registration_number": "IHL-867-1005"},
+            {"contact_name": "Rhonda"},
+            {"firm_name": "Atlantic Chamber"},
+            {"lobbyist_type": "In-House"},
+            {"status": "Approved"},
+            {"effective_from": "2026-01-01", "effective_to": "2026-12-31"},
+        ],
+    )
+    def test_column_filters(self, client: TestClient, params: dict[str, str]) -> None:
+        response = client.get("/search/lobbyists", params=params)
+
+        assert response.status_code == 200
+        assert "IHL-867-1005" in response.text
+        assert 'class="result-meta-row"' in response.text
+        assert "<table" not in response.text
+
     def test_detail(self, client: TestClient) -> None:
         response = client.get("/lobbyist/IHL-867-1005")
         assert response.status_code == 200
@@ -116,6 +206,7 @@ class TestLobbyistEndpoints:
         assert "Atlantic Chamber of Commerce" in response.text
         assert "Economic Development" in response.text
         assert "Tulk-Lane, Rhonda" in response.text
+        assert 'href="/lobbyists"' in response.text
 
     def test_detail_404(self, client: TestClient) -> None:
         response = client.get("/lobbyist/NOPE-000-000")

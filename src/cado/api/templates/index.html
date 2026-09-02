@@ -1,61 +1,136 @@
 {% extends "base.html" %}
 
 {% block content %}
-<section class="counts">
+<section class="counts company-counts" aria-label="Registry coverage">
   <div class="count-card"><span class="number">{{ counts.companies }}</span><span class="label">Companies</span></div>
   <div class="count-card"><span class="number">{{ counts.condominiums }}</span><span class="label">Condominiums</span></div>
   <div class="count-card"><span class="number">{{ counts.cooperatives }}</span><span class="label">Co-operatives</span></div>
-  <div class="count-card"><span class="number">{{ counts.lobbyists }}</span><span class="label">Lobbyists</span></div>
 </section>
-<p class="result-meta">
+<p class="snapshot-meta">
   Snapshot <span class="num">{{ snapshot.snapshot_id }}</span> fetched from the source
   {{ snapshot.source_fetched_at }} and published {{ snapshot.published_at }}.
 </p>
 
-<section class="search-section">
-  <h2>Companies / Condominiums / Co-operatives</h2>
+<section class="search-section" aria-labelledby="company-search-title">
+  <div class="section-heading">
+    <h2 id="company-search-title">Companies, condominiums, and co-operatives</h2>
+    <p>Search broadly, or filter a specific column below. <span id="company-loading" class="htmx-indicator">Updating...</span></p>
+  </div>
   <form
+    id="company-filter-form"
     class="search-form"
     hx-get="/search/companies"
-    hx-trigger="input changed delay:250ms from:input, change from:select, submit"
+    hx-trigger="input changed delay:300ms from:input, change from:select, submit"
     hx-target="#company-results"
+    hx-swap="innerHTML"
+    hx-indicator="#company-loading"
     hx-push-url="false"
     onsubmit="return false;"
   >
-    <input type="search" name="q" placeholder="Name or company number (e.g. 25166, 'STITCH')" autofocus>
-    <select name="corp_type">
-      <option value="">All types</option>
-      <option value="Company">Companies</option>
-      <option value="Condominium">Condominiums</option>
-      <option value="Co-operative">Co-operatives</option>
-    </select>
-    <select name="status">
-      <option value="">Any status</option>
-      <option value="Active">Active</option>
-      <option value="Dissolved - Involuntary">Dissolved &mdash; Involuntary</option>
-      <option value="Dissolved - Voluntary">Dissolved &mdash; Voluntary</option>
-      <option value="Dissolved (Prior To June 2004)">Dissolved (pre-2004)</option>
-      <option value="Discontinued">Discontinued</option>
-      <option value="Cancelled">Cancelled</option>
-      <option value="Cancelled - Voluntary">Cancelled &mdash; Voluntary</option>
-      <option value="Previous Name">Previous Name</option>
-    </select>
-  </form>
-  <div id="company-results" hx-get="/search/companies" hx-trigger="load"></div>
-</section>
+    <div class="global-search">
+      <label for="company-query">Search across company records</label>
+      <input
+        id="company-query"
+        type="search"
+        name="q"
+        placeholder="Company, director, previous name, or number"
+        autocomplete="off"
+        autofocus
+      >
+    </div>
 
-<section class="search-section">
-  <h2>Lobbyists</h2>
-  <form
-    class="search-form"
-    hx-get="/search/lobbyists"
-    hx-trigger="input changed delay:250ms from:input, submit"
-    hx-target="#lobbyist-results"
-    hx-push-url="false"
-    onsubmit="return false;"
-  >
-    <input type="search" name="q" placeholder="Name, firm, or registration # (e.g. IHL-867-1005)">
+    <div class="table-scroll" tabindex="0" aria-label="Company search results">
+      <table class="results company-results">
+        <thead>
+          <tr>
+            <th scope="col">Name</th>
+            <th scope="col">Number</th>
+            <th scope="col">Type</th>
+            <th scope="col">Status</th>
+            <th scope="col">Category</th>
+            <th scope="col">Incorporated</th>
+            <th scope="col">Location</th>
+          </tr>
+          <tr class="filter-row">
+            <th>
+              <label class="sr-only" for="company-name">Filter by current name</label>
+              <input id="company-name" type="search" name="name" placeholder="Name" autocomplete="off">
+            </th>
+            <th>
+              <label class="sr-only" for="company-number">Filter by exact company number</label>
+              <input id="company-number" type="search" name="number" placeholder="Exact #" autocomplete="off">
+            </th>
+            <th>
+              <label class="sr-only" for="company-type">Filter by registry type</label>
+              <select id="company-type" name="corp_type">
+                <option value="">All</option>
+                <option value="Company">Company</option>
+                <option value="Condominium">Condominium</option>
+                <option value="Co-operative">Co-operative</option>
+              </select>
+            </th>
+            <th>
+              <label class="sr-only" for="company-status">Filter by exact status</label>
+              <select id="company-status" name="status">
+                <option value="">All</option>
+                <option value="Active">Active</option>
+                <option value="Active (See Note)">Active (See Note)</option>
+                <option value="Amalgamated">Amalgamated</option>
+                <option value="Cancelled">Cancelled</option>
+                <option value="Cancelled - Involuntary">Cancelled - Involuntary</option>
+                <option value="Cancelled - Voluntary">Cancelled - Voluntary</option>
+                <option value="Company Number Unassigned">Company Number Unassigned</option>
+                <option value="Discontinued">Discontinued</option>
+                <option value="Dissolved (Prior To June 2004)">Dissolved (Prior To June 2004)</option>
+                <option value="Dissolved - Involuntary">Dissolved - Involuntary</option>
+                <option value="Dissolved - Voluntary">Dissolved - Voluntary</option>
+                <option value="Inactive">Inactive</option>
+                <option value="Involuntary Dissolution In Progress">Involuntary Dissolution In Progress</option>
+                <option value="Liquidated">Liquidated</option>
+                <option value="Registration In Progress">Registration In Progress</option>
+                <option value="System Error">System Error</option>
+                <option value="Temp. Deferred Involuntary Dissolution">Temp. Deferred Involuntary Dissolution</option>
+              </select>
+            </th>
+            <th>
+              <label class="sr-only" for="company-category">Filter by category</label>
+              <select id="company-category" name="category">
+                <option value="">All</option>
+                <option value="Local">Local</option>
+                <option value="Extra-Provincial">Extra-Provincial</option>
+              </select>
+            </th>
+            <th>
+              <div class="range-filter">
+                <label class="sr-only" for="incorporated-from">Incorporated on or after</label>
+                <input id="incorporated-from" type="date" name="incorporated_from" title="Incorporated on or after">
+                <label class="sr-only" for="incorporated-to">Incorporated on or before</label>
+                <input id="incorporated-to" type="date" name="incorporated_to" title="Incorporated on or before">
+              </div>
+            </th>
+            <th>
+              <div class="location-filter">
+                <label class="sr-only" for="company-city">Filter by registered-office city</label>
+                <input id="company-city" type="search" name="city" placeholder="City" autocomplete="off">
+                <label class="sr-only" for="company-province">Filter by registered-office province or state</label>
+                <input id="company-province" type="search" name="province_state" placeholder="Province" autocomplete="off">
+              </div>
+            </th>
+          </tr>
+        </thead>
+        <tbody
+          id="company-results"
+          hx-get="/search/companies"
+          hx-trigger="load"
+          hx-include="#company-filter-form"
+          hx-indicator="#company-loading"
+          hx-target="this"
+          hx-swap="innerHTML"
+        >
+          <tr class="empty-row"><td colspan="7">Loading records...</td></tr>
+        </tbody>
+      </table>
+    </div>
   </form>
-  <div id="lobbyist-results" hx-get="/search/lobbyists" hx-trigger="load"></div>
 </section>
 {% endblock %}

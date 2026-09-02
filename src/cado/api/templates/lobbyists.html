@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Lobbyists - CADO Search{% endblock %}
+
+{% block content %}
+<section class="counts lobbyist-counts" aria-label="Registry coverage">
+  <div class="count-card"><span class="number">{{ counts.lobbyists }}</span><span class="label">Lobbyist registrations</span></div>
+</section>
+<p class="snapshot-meta">
+  Snapshot <span class="num">{{ snapshot.snapshot_id }}</span> fetched from the source
+  {{ snapshot.source_fetched_at }} and published {{ snapshot.published_at }}.
+</p>
+
+<section class="search-section" aria-labelledby="lobbyist-search-title">
+  <div class="section-heading">
+    <h2 id="lobbyist-search-title">Lobbyist registrations</h2>
+    <p>Search broadly, or filter a specific column below. <span id="lobbyist-loading" class="htmx-indicator">Updating...</span></p>
+  </div>
+  <form
+    id="lobbyist-filter-form"
+    class="search-form"
+    hx-get="/search/lobbyists"
+    hx-trigger="input changed delay:300ms from:input, change from:select, submit"
+    hx-target="#lobbyist-results"
+    hx-swap="innerHTML"
+    hx-indicator="#lobbyist-loading"
+    hx-push-url="false"
+    onsubmit="return false;"
+  >
+    <div class="global-search">
+      <label for="lobbyist-query">Search across lobbyist records</label>
+      <input
+        id="lobbyist-query"
+        type="search"
+        name="q"
+        placeholder="Person, firm, client, or registration number"
+        autocomplete="off"
+        autofocus
+      >
+    </div>
+
+    <div class="table-scroll" tabindex="0" aria-label="Lobbyist search results">
+      <table class="results lobbyist-results">
+        <thead>
+          <tr>
+            <th scope="col">Registration #</th>
+            <th scope="col">Contact name</th>
+            <th scope="col">Firm / organisation</th>
+            <th scope="col">Type</th>
+            <th scope="col">Status</th>
+            <th scope="col">Effective date</th>
+          </tr>
+          <tr class="filter-row">
+            <th>
+              <label class="sr-only" for="registration-number">Filter by exact registration number</label>
+              <input id="registration-number" type="search" name="registration_number" placeholder="Exact #" autocomplete="off">
+            </th>
+            <th>
+              <label class="sr-only" for="contact-name">Filter by contact name</label>
+              <input id="contact-name" type="search" name="contact_name" placeholder="Contact" autocomplete="off">
+            </th>
+            <th>
+              <label class="sr-only" for="firm-name">Filter by firm or organisation</label>
+              <input id="firm-name" type="search" name="firm_name" placeholder="Firm" autocomplete="off">
+            </th>
+            <th>
+              <label class="sr-only" for="lobbyist-type">Filter by lobbyist type</label>
+              <select id="lobbyist-type" name="lobbyist_type">
+                <option value="">All</option>
+                <option value="Consultant">Consultant</option>
+                <option value="In-House">In-House</option>
+              </select>
+            </th>
+            <th>
+              <label class="sr-only" for="lobbyist-status">Filter by exact status</label>
+              <select id="lobbyist-status" name="status">
+                <option value="">All</option>
+                <option value="Approved">Approved</option>
+                <option value="Completed">Completed</option>
+                <option value="Renewal Due">Renewal Due</option>
+                <option value="Renewal Submitted">Renewal Submitted</option>
+                <option value="Terminated">Terminated</option>
+              </select>
+            </th>
+            <th>
+              <div class="range-filter">
+                <label class="sr-only" for="effective-from">Effective on or after</label>
+                <input id="effective-from" type="date" name="effective_from" title="Effective on or after">
+                <label class="sr-only" for="effective-to">Effective on or before</label>
+                <input id="effective-to" type="date" name="effective_to" title="Effective on or before">
+              </div>
+            </th>
+          </tr>
+        </thead>
+        <tbody
+          id="lobbyist-results"
+          hx-get="/search/lobbyists"
+          hx-trigger="load"
+          hx-include="#lobbyist-filter-form"
+          hx-indicator="#lobbyist-loading"
+          hx-target="this"
+          hx-swap="innerHTML"
+        >
+          <tr class="empty-row"><td colspan="6">Loading records...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </form>
+</section>
+{% endblock %}
