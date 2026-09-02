@@ -6,8 +6,9 @@
   <div class="count-card"><span class="number">{{ counts.lobbyists }}</span><span class="label">Lobbyist registrations</span></div>
 </section>
 <p class="snapshot-meta">
-  Snapshot <span class="num">{{ snapshot.snapshot_id }}</span> fetched from the source
-  {{ snapshot.source_fetched_at }} and published {{ snapshot.published_at }}.
+  Snapshot <span class="num">{{ snapshot.snapshot_id }}</span>.
+  Source data fetched <time datetime="{{ snapshot.source_fetched_at.date().isoformat() }}">{{ snapshot.source_fetched_at|human_date }}</time>;
+  published <time datetime="{{ snapshot.published_at.date().isoformat() }}">{{ snapshot.published_at|human_date }}</time>.
 </p>
 
 <section class="search-section" aria-labelledby="lobbyist-search-title">
@@ -24,8 +25,9 @@
     hx-swap="innerHTML"
     hx-indicator="#lobbyist-loading"
     hx-push-url="false"
-    onsubmit="return false;"
   >
+    <input type="hidden" name="sort" value="">
+    <input type="hidden" name="direction" value="asc">
     <div class="global-search">
       <label for="lobbyist-query">Search across lobbyist records</label>
       <input
@@ -42,12 +44,12 @@
       <table class="results lobbyist-results">
         <thead>
           <tr>
-            <th scope="col">Registration #</th>
-            <th scope="col">Contact name</th>
-            <th scope="col">Firm / organisation</th>
-            <th scope="col">Type</th>
-            <th scope="col">Status</th>
-            <th scope="col">Effective date</th>
+            <th scope="col" aria-sort="none"><button type="button" class="sort-button" data-sort="registration_number" data-label="registration number">Registration #<span class="sort-indicator" aria-hidden="true"></span></button></th>
+            <th scope="col" aria-sort="none"><button type="button" class="sort-button" data-sort="contact_name" data-label="contact name">Contact name<span class="sort-indicator" aria-hidden="true"></span></button></th>
+            <th scope="col" aria-sort="none"><button type="button" class="sort-button" data-sort="firm_name" data-label="firm or organisation">Firm / organisation<span class="sort-indicator" aria-hidden="true"></span></button></th>
+            <th scope="col" aria-sort="none"><button type="button" class="sort-button" data-sort="lobbyist_type" data-label="type">Type<span class="sort-indicator" aria-hidden="true"></span></button></th>
+            <th scope="col" aria-sort="none"><button type="button" class="sort-button" data-sort="status" data-label="status">Status<span class="sort-indicator" aria-hidden="true"></span></button></th>
+            <th scope="col" aria-sort="none"><button type="button" class="sort-button" data-sort="effective_date" data-label="effective date">Effective date<span class="sort-indicator" aria-hidden="true"></span></button></th>
           </tr>
           <tr class="filter-row">
             <th>

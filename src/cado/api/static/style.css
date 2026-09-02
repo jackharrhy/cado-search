@@ -70,6 +70,14 @@ table.results { width: 100%; min-width: 1020px; border-collapse: collapse; font-
 table.lobbyist-results { min-width: 900px; }
 table.results th, table.results td { padding: .5rem .6rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
 table.results th { background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; }
+.sort-button { display: inline-flex; align-items: center; gap: .3rem; padding: 0; color: inherit; border: 0; background: transparent; font: inherit; font-weight: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer; }
+.sort-button:hover { text-decoration: underline; text-underline-offset: 2px; }
+.sort-button:active { transform: translateY(1px); }
+.sort-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+.sort-indicator { width: .8rem; color: var(--muted); font-size: .85rem; line-height: 1; }
+th[aria-sort="none"] .sort-indicator::after { content: "↕"; opacity: .6; }
+th[aria-sort="ascending"] .sort-indicator::after { content: "↑"; color: var(--accent); }
+th[aria-sort="descending"] .sort-indicator::after { content: "↓"; color: var(--accent); }
 table.results tbody tr:last-child td { border-bottom: 0; }
 table.results tbody tr:hover { background: var(--hover); }
 table.results td.num { font-variant-numeric: tabular-nums; color: var(--muted); }

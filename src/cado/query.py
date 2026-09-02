@@ -42,6 +42,54 @@ SOURCE_NOTICE = (
 
 FilterTerm = Annotated[str, Field(min_length=1, max_length=200)]
 FilterValue = Annotated[str, Field(min_length=1, max_length=200)]
+SortDirection = Literal["asc", "desc"]
+CompanySortField = Literal[
+    "name",
+    "number",
+    "corporation_type",
+    "status",
+    "category",
+    "incorporation_date",
+    "location",
+]
+LobbyistSortField = Literal[
+    "registration_number",
+    "contact_name",
+    "firm_name",
+    "lobbyist_type",
+    "status",
+    "effective_date",
+]
+
+_COMPANY_SORT_EXPRESSIONS: dict[str, tuple[str, ...]] = {
+    "name": ("NULLIF(lower(trim(c.name)), '')",),
+    "number": (
+        "TRY_CAST(regexp_extract(c.number, '^[0-9]+') AS BIGINT)",
+        "lower(c.number)",
+    ),
+    "corporation_type": ("NULLIF(lower(trim(c.corporation_type)), '')",),
+    "status": ("NULLIF(lower(trim(c.status)), '')",),
+    "category": ("NULLIF(lower(trim(c.category)), '')",),
+    "incorporation_date": ("c.incorporation_date",),
+    "location": (
+        "NULLIF(lower(trim(c.ro_city)), '')",
+        "NULLIF(lower(trim(c.ro_province_state)), '')",
+    ),
+}
+
+_LOBBYIST_SORT_EXPRESSIONS: dict[str, tuple[str, ...]] = {
+    "registration_number": (
+        "lower(regexp_extract(l.registration_number, '^[A-Za-z]+'))",
+        "TRY_CAST(regexp_extract(l.registration_number, '([0-9]+)', 1) AS BIGINT)",
+        "TRY_CAST(regexp_extract(l.registration_number, '([0-9]+)$', 1) AS BIGINT)",
+        "lower(l.registration_number)",
+    ),
+    "contact_name": ("NULLIF(lower(trim(l.contact_name)), '')",),
+    "firm_name": ("NULLIF(lower(trim(l.firm_name)), '')",),
+    "lobbyist_type": ("NULLIF(lower(trim(l.lobbyist_type)), '')",),
+    "status": ("NULLIF(lower(trim(l.status)), '')",),
+    "effective_date": ("l.effective_date",),
+}
 
 
 class MatchMode(StrEnum):
@@ -432,6 +480,13 @@ class RegistrySnapshot(BaseModel):
     count: int
 
 
+class CompanyLocationOptions(BaseModel):
+    """Distinct registered-office values offered by the company UI."""
+
+    cities: list[str]
+    provinces: list[str]
+
+
 class DatasetStatus(BaseModel):
     """Coverage and freshness information for the local CADO mirror."""
 
@@ -481,6 +536,8 @@ class RegistryQueryService:
         *,
         query: str = "",
         filters: CompanySearchFilters | None = None,
+        sort_by: CompanySortField | None = None,
+        sort_direction: SortDirection = "asc",
         limit: int = 20,
         offset: int = 0,
     ) -> CompanySearchPage:
@@ -581,6 +638,7 @@ class RegistryQueryService:
             filters.has_historical_remarks,
         )
         where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        order_by = _company_order_by(sort_by, sort_direction)
 
         evidence_sql = """
             NULL::VARCHAR AS query_number_match,
@@ -622,9 +680,7 @@ class RegistryQueryService:
                        {evidence_sql}
                 FROM companies AS c
                 {where}
-                ORDER BY query_number_match IS NULL,
-                         query_name_match IS NULL,
-                         lower(c.name), c.number
+                ORDER BY {order_by}
                 LIMIT ? OFFSET ?
                 """,
                 [*evidence_params, *params, limit, offset],
@@ -651,6 +707,32 @@ class RegistryQueryService:
             returned=len(items),
             next_offset=_next_offset(total, offset, len(items)),
             items=items,
+        )
+
+    def get_company_location_options(self) -> CompanyLocationOptions:
+        """Return distinct registered-office cities and provinces for type-ahead inputs."""
+        with self._connection() as conn:
+            cities = conn.execute(
+                """
+                SELECT min(trim(ro_city)) AS value
+                FROM companies
+                WHERE NULLIF(trim(ro_city), '') IS NOT NULL
+                GROUP BY lower(trim(ro_city))
+                ORDER BY lower(value), value
+                """
+            ).fetchall()
+            provinces = conn.execute(
+                """
+                SELECT min(trim(ro_province_state)) AS value
+                FROM companies
+                WHERE NULLIF(trim(ro_province_state), '') IS NOT NULL
+                GROUP BY lower(trim(ro_province_state))
+                ORDER BY lower(value), value
+                """
+            ).fetchall()
+        return CompanyLocationOptions(
+            cities=[row[0] for row in cities],
+            provinces=[row[0] for row in provinces],
         )
 
     def get_company(self, number: str) -> CompanyRecord | None:
@@ -730,6 +812,8 @@ class RegistryQueryService:
         *,
         query: str = "",
         filters: LobbyistSearchFilters | None = None,
+        sort_by: LobbyistSortField | None = None,
+        sort_direction: SortDirection = "asc",
         limit: int = 20,
         offset: int = 0,
     ) -> LobbyistSearchPage:
@@ -828,6 +912,7 @@ class RegistryQueryService:
             filters.has_in_house_lobbyists,
         )
         where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        order_by = _lobbyist_order_by(sort_by, sort_direction)
 
         evidence_sql = """
             NULL::VARCHAR AS query_number_match,
@@ -871,13 +956,7 @@ class RegistryQueryService:
                        {evidence_sql}
                 FROM lobbyist_registrations AS l
                 {where}
-                ORDER BY query_number_match IS NULL,
-                         query_contact_match IS NULL,
-                         query_firm_match IS NULL,
-                         query_client_match IS NULL,
-                         l.effective_date DESC NULLS LAST,
-                         lower(coalesce(l.contact_name, '')),
-                         l.registration_number
+                ORDER BY {order_by}
                 LIMIT ? OFFSET ?
                 """,
                 [*evidence_params, *params, limit, offset],
@@ -993,6 +1072,59 @@ class RegistryQueryService:
 
     def _record_url(self, kind: str, key: str) -> str:
         return f"{self.public_base_url}/{kind}/{key}"
+
+
+def _company_order_by(
+    sort_by: CompanySortField | None,
+    direction: SortDirection,
+) -> str:
+    return _sort_order(
+        _COMPANY_SORT_EXPRESSIONS,
+        sort_by,
+        direction,
+        default=("query_number_match IS NULL, query_name_match IS NULL, lower(c.name), c.number"),
+        tie_breaker="lower(c.name), c.number",
+    )
+
+
+def _lobbyist_order_by(
+    sort_by: LobbyistSortField | None,
+    direction: SortDirection,
+) -> str:
+    return _sort_order(
+        _LOBBYIST_SORT_EXPRESSIONS,
+        sort_by,
+        direction,
+        default=(
+            "query_number_match IS NULL, query_contact_match IS NULL, "
+            "query_firm_match IS NULL, query_client_match IS NULL, "
+            "l.effective_date DESC NULLS LAST, "
+            "lower(coalesce(l.contact_name, '')), l.registration_number"
+        ),
+        tie_breaker="l.registration_number",
+    )
+
+
+def _sort_order(
+    choices: dict[str, tuple[str, ...]],
+    sort_by: str | None,
+    direction: SortDirection,
+    *,
+    default: str,
+    tie_breaker: str,
+) -> str:
+    """Build an ORDER BY fragment exclusively from trusted expressions."""
+    if sort_by is None:
+        return default
+    expressions = choices.get(sort_by)
+    if expressions is None:
+        raise ValueError(f"unsupported sort field: {sort_by}")
+    if direction not in ("asc", "desc"):
+        raise ValueError(f"unsupported sort direction: {direction}")
+    keyword = direction.upper()
+    ordered = [f"{expression} {keyword} NULLS LAST" for expression in expressions]
+    ordered.append(tie_breaker)
+    return ", ".join(ordered)
 
 
 def _contains_pattern(value: str) -> str:

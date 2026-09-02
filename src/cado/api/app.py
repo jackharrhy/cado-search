@@ -10,9 +10,10 @@ from __future__ import annotations
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import date
+from datetime import date, datetime
 from importlib import resources
 from pathlib import Path
+from typing import Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
@@ -21,7 +22,14 @@ from fastapi.templating import Jinja2Templates
 from mcp.server.transport_security import TransportSecuritySettings
 
 from ..mcp import create_mcp_server
-from ..query import CompanySearchFilters, LobbyistSearchFilters, RegistryQueryService
+from ..query import (
+    CompanySearchFilters,
+    CompanySortField,
+    LobbyistSearchFilters,
+    LobbyistSortField,
+    RegistryQueryService,
+    SortDirection,
+)
 from ..settings import settings
 from ..snapshot import SnapshotValidationError, validate_database
 
@@ -78,6 +86,7 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     templates = Jinja2Templates(directory=_template_dir())
+    templates.env.filters["human_date"] = _human_date
     app.state.templates = templates
     app.state.query_service = service
     app.state.mcp = mcp
@@ -106,6 +115,7 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         query_service: RegistryQueryService = Depends(get_service),
     ) -> HTMLResponse:
         context = _registry_context(query_service)
+        context["company_locations"] = query_service.get_company_location_options()
         return templates.TemplateResponse(
             request,
             "index.html",
@@ -143,6 +153,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         incorporated_to: str = Query("", max_length=10),
         city: str = Query("", max_length=200),
         province_state: str = Query("", max_length=200),
+        sort: CompanySortField | Literal[""] = Query(""),
+        direction: SortDirection = Query("asc"),
         limit: int = Query(50, ge=1, le=50),
         query_service: RegistryQueryService = Depends(get_service),
     ) -> HTMLResponse:
@@ -172,6 +184,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
                     ),
                 }
             ),
+            sort_by=sort or None,
+            sort_direction=direction,
             limit=limit,
         )
         return templates.TemplateResponse(
@@ -191,6 +205,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         status: str = Query("", max_length=100),
         effective_from: str = Query("", max_length=10),
         effective_to: str = Query("", max_length=10),
+        sort: LobbyistSortField | Literal[""] = Query(""),
+        direction: SortDirection = Query("asc"),
         limit: int = Query(50, ge=1, le=50),
         query_service: RegistryQueryService = Depends(get_service),
     ) -> HTMLResponse:
@@ -214,6 +230,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
                     ),
                 }
             ),
+            sort_by=sort or None,
+            sort_direction=direction,
             limit=limit,
         )
         return templates.TemplateResponse(
@@ -284,3 +302,7 @@ def _optional_date(value: str, field: str) -> date | None:
         raise HTTPException(
             status_code=422, detail=f"{field} must be a valid YYYY-MM-DD date"
         ) from exc
+
+
+def _human_date(value: datetime) -> str:
+    return f"{value.strftime('%B')} {value.day}, {value.year}"

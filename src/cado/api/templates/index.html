@@ -7,8 +7,9 @@
   <div class="count-card"><span class="number">{{ counts.cooperatives }}</span><span class="label">Co-operatives</span></div>
 </section>
 <p class="snapshot-meta">
-  Snapshot <span class="num">{{ snapshot.snapshot_id }}</span> fetched from the source
-  {{ snapshot.source_fetched_at }} and published {{ snapshot.published_at }}.
+  Snapshot <span class="num">{{ snapshot.snapshot_id }}</span>.
+  Source data fetched <time datetime="{{ snapshot.source_fetched_at.date().isoformat() }}">{{ snapshot.source_fetched_at|human_date }}</time>;
+  published <time datetime="{{ snapshot.published_at.date().isoformat() }}">{{ snapshot.published_at|human_date }}</time>.
 </p>
 
 <section class="search-section" aria-labelledby="company-search-title">
@@ -25,8 +26,9 @@
     hx-swap="innerHTML"
     hx-indicator="#company-loading"
     hx-push-url="false"
-    onsubmit="return false;"
   >
+    <input type="hidden" name="sort" value="">
+    <input type="hidden" name="direction" value="asc">
     <div class="global-search">
       <label for="company-query">Search across company records</label>
       <input
@@ -43,13 +45,13 @@
       <table class="results company-results">
         <thead>
           <tr>
-            <th scope="col">Name</th>
-            <th scope="col">Number</th>
-            <th scope="col">Type</th>
-            <th scope="col">Status</th>
-            <th scope="col">Category</th>
-            <th scope="col">Incorporated</th>
-            <th scope="col">Location</th>
+            <th scope="col" aria-sort="none"><button type="button" class="sort-button" data-sort="name" data-label="name">Name<span class="sort-indicator" aria-hidden="true"></span></button></th>
+            <th scope="col" aria-sort="none"><button type="button" class="sort-button" data-sort="number" data-label="number">Number<span class="sort-indicator" aria-hidden="true"></span></button></th>
+            <th scope="col" aria-sort="none"><button type="button" class="sort-button" data-sort="corporation_type" data-label="type">Type<span class="sort-indicator" aria-hidden="true"></span></button></th>
+            <th scope="col" aria-sort="none"><button type="button" class="sort-button" data-sort="status" data-label="status">Status<span class="sort-indicator" aria-hidden="true"></span></button></th>
+            <th scope="col" aria-sort="none"><button type="button" class="sort-button" data-sort="category" data-label="category">Category<span class="sort-indicator" aria-hidden="true"></span></button></th>
+            <th scope="col" aria-sort="none"><button type="button" class="sort-button" data-sort="incorporation_date" data-label="incorporation date">Incorporated<span class="sort-indicator" aria-hidden="true"></span></button></th>
+            <th scope="col" aria-sort="none"><button type="button" class="sort-button" data-sort="location" data-label="location">Location<span class="sort-indicator" aria-hidden="true"></span></button></th>
           </tr>
           <tr class="filter-row">
             <th>
@@ -111,9 +113,9 @@
             <th>
               <div class="location-filter">
                 <label class="sr-only" for="company-city">Filter by registered-office city</label>
-                <input id="company-city" type="search" name="city" placeholder="City" autocomplete="off">
+                <input id="company-city" type="search" name="city" list="company-cities" placeholder="City" autocomplete="off">
                 <label class="sr-only" for="company-province">Filter by registered-office province or state</label>
-                <input id="company-province" type="search" name="province_state" placeholder="Province" autocomplete="off">
+                <input id="company-province" type="search" name="province_state" list="company-provinces" placeholder="Province" autocomplete="off">
               </div>
             </th>
           </tr>
@@ -131,6 +133,12 @@
         </tbody>
       </table>
     </div>
+    <datalist id="company-cities">
+      {% for city in company_locations.cities %}<option value="{{ city }}"></option>{% endfor %}
+    </datalist>
+    <datalist id="company-provinces">
+      {% for province in company_locations.provinces %}<option value="{{ province }}"></option>{% endfor %}
+    </datalist>
   </form>
 </section>
 {% endblock %}

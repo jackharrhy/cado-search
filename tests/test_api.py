@@ -6,6 +6,7 @@ the right rows for various queries.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -64,6 +65,17 @@ class TestIndex:
         ):
             assert f'name="{field}"' in response.text
 
+        for field in (
+            "name",
+            "number",
+            "corporation_type",
+            "status",
+            "category",
+            "incorporation_date",
+            "location",
+        ):
+            assert f'data-sort="{field}"' in response.text
+
     def test_each_visible_lobbyist_column_has_filters(self, client: TestClient) -> None:
         response = client.get("/lobbyists")
 
@@ -78,6 +90,35 @@ class TestIndex:
         ):
             assert f'name="{field}"' in response.text
 
+        for field in (
+            "registration_number",
+            "contact_name",
+            "firm_name",
+            "lobbyist_type",
+            "status",
+            "effective_date",
+        ):
+            assert f'data-sort="{field}"' in response.text
+
+    def test_company_locations_are_type_ahead_options(self, client: TestClient) -> None:
+        response = client.get("/")
+
+        assert 'list="company-cities"' in response.text
+        assert '<option value="Harbour Breton">' in response.text
+        assert '<option value="St. John&#39;s">' in response.text
+        assert 'list="company-provinces"' in response.text
+        assert '<option value="NL">' in response.text
+
+    def test_snapshot_dates_are_human_readable(self, client: TestClient) -> None:
+        response = client.get("/")
+
+        assert re.search(
+            r"Source data fetched <time datetime=\"\d{4}-\d{2}-\d{2}\">"
+            r"[A-Z][a-z]+ \d{1,2}, \d{4}</time>;\s+published",
+            response.text,
+        )
+        assert not re.search(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", response.text)
+
     def test_health_endpoints(self, client: TestClient) -> None:
         assert client.get("/health/live").json() == {"status": "ok"}
         assert client.get("/health/ready").json() == {
@@ -88,7 +129,7 @@ class TestIndex:
 
 class TestCompanySearch:
     def test_blank_query_returns_all(self, client: TestClient) -> None:
-        response = client.get("/search/companies")
+        response = client.get("/search/companies", params={"sort": ""})
         assert response.status_code == 200
         # 5 companies seeded.
         assert "Showing all 5 matches" in response.text
@@ -146,6 +187,52 @@ class TestCompanySearch:
         response = client.get("/search/companies", params={"q": "zzzzzNotARealName"})
         assert "No matches" in response.text
 
+    def test_each_sort_field_and_direction_is_supported(self, client: TestClient) -> None:
+        for field in (
+            "name",
+            "number",
+            "corporation_type",
+            "status",
+            "category",
+            "incorporation_date",
+            "location",
+        ):
+            for direction in ("asc", "desc"):
+                response = client.get(
+                    "/search/companies",
+                    params={"sort": field, "direction": direction},
+                )
+                assert response.status_code == 200, (field, direction, response.text)
+
+    def test_sort_direction_changes_company_order(self, client: TestClient) -> None:
+        name_asc = client.get("/search/companies", params={"sort": "name", "direction": "asc"}).text
+        name_desc = client.get(
+            "/search/companies", params={"sort": "name", "direction": "desc"}
+        ).text
+        assert name_asc.index("10 Mile Condominium") < name_asc.index("Irving Energy")
+        assert name_desc.index("Irving Energy") < name_desc.index("10 Mile Condominium")
+
+        number_asc = client.get(
+            "/search/companies", params={"sort": "number", "direction": "asc"}
+        ).text
+        assert number_asc.index(">2D<") < number_asc.index(">50000<")
+
+        date_desc = client.get(
+            "/search/companies",
+            params={"sort": "incorporation_date", "direction": "desc"},
+        ).text
+        assert date_desc.index("Irving Energy") < date_desc.index("CONNAIGRE NET")
+        assert date_desc.index("CONNAIGRE NET") < date_desc.index("IMPERIAL TOBACCO")
+
+    def test_rejects_unknown_sort_values(self, client: TestClient) -> None:
+        assert client.get("/search/companies", params={"sort": "drop table"}).status_code == 422
+        assert (
+            client.get(
+                "/search/companies", params={"sort": "name", "direction": "sideways"}
+            ).status_code
+            == 422
+        )
+
 
 class TestCompanyDetail:
     def test_renders_full_record(self, client: TestClient) -> None:
@@ -180,6 +267,12 @@ class TestLobbyistEndpoints:
         assert response.status_code == 200
         assert "IHL-867-1005" in response.text
 
+    def test_blank_sort_returns_all(self, client: TestClient) -> None:
+        response = client.get("/search/lobbyists", params={"sort": ""})
+
+        assert response.status_code == 200
+        assert "IHL-867-1005" in response.text
+
     @pytest.mark.parametrize(
         "params",
         [
@@ -211,6 +304,22 @@ class TestLobbyistEndpoints:
     def test_detail_404(self, client: TestClient) -> None:
         response = client.get("/lobbyist/NOPE-000-000")
         assert response.status_code == 404
+
+    def test_each_sort_field_and_direction_is_supported(self, client: TestClient) -> None:
+        for field in (
+            "registration_number",
+            "contact_name",
+            "firm_name",
+            "lobbyist_type",
+            "status",
+            "effective_date",
+        ):
+            for direction in ("asc", "desc"):
+                response = client.get(
+                    "/search/lobbyists",
+                    params={"sort": field, "direction": direction},
+                )
+                assert response.status_code == 200, (field, direction, response.text)
 
 
 class TestStartupRequiresDatabase:
