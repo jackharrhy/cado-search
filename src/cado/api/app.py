@@ -16,10 +16,12 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from mcp.server.transport_security import TransportSecuritySettings
+from pydantic import BaseModel, ValidationError
 
 from ..mcp import create_mcp_server
 from ..query import (
@@ -162,7 +164,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         incorporation_end = _optional_date(incorporated_to, "incorporated_to")
         page = query_service.search_companies(
             query=q,
-            filters=CompanySearchFilters.model_validate(
+            filters=_validate_search_filters(
+                CompanySearchFilters,
                 {
                     "current_names": {"terms": [name]} if name else None,
                     "company_numbers": [number] if number else None,
@@ -182,7 +185,7 @@ def create_app(db_path: Path | None = None) -> FastAPI:
                         if city or province_state
                         else None
                     ),
-                }
+                },
             ),
             sort_by=sort or None,
             sort_direction=direction,
@@ -214,7 +217,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         effective_end = _optional_date(effective_to, "effective_to")
         page = query_service.search_lobbyists(
             query=q,
-            filters=LobbyistSearchFilters.model_validate(
+            filters=_validate_search_filters(
+                LobbyistSearchFilters,
                 {
                     "registration_numbers": (
                         [registration_number] if registration_number else None
@@ -228,7 +232,7 @@ def create_app(db_path: Path | None = None) -> FastAPI:
                         if effective_start or effective_end
                         else None
                     ),
-                }
+                },
             ),
             sort_by=sort or None,
             sort_direction=direction,
@@ -291,6 +295,19 @@ def _registry_context(query_service: RegistryQueryService) -> dict[str, object]:
         },
         "snapshot": status,
     }
+
+
+def _validate_search_filters[Filters: BaseModel](
+    model: type[Filters], values: dict[str, object]
+) -> Filters:
+    try:
+        return model.model_validate(values)
+    except ValidationError as exc:
+        # Validator contexts can contain exceptions that are not JSON serializable.
+        errors = exc.errors(include_context=False, include_url=False)
+        for error in errors:
+            error["loc"] = ("query", *error["loc"])
+        raise RequestValidationError(errors) from exc
 
 
 def _optional_date(value: str, field: str) -> date | None:

@@ -330,6 +330,47 @@ class TestLobbyistEndpoints:
                 assert response.status_code == 200, (field, direction, response.text)
 
 
+@pytest.mark.parametrize(
+    ("route", "params", "location", "error_type"),
+    [
+        ("companies", {"corp_type": "not-a-type"}, ["corporation_types", 0], "enum"),
+        ("companies", {"category": "not-a-category"}, ["categories", 0], "enum"),
+        ("companies", {"city": "   "}, ["registered_office", "city"], "string_too_short"),
+        ("companies", {"status": "x" * 201}, ["statuses", 0], "string_too_long"),
+        (
+            "companies",
+            {"incorporated_from": "2026-01-02", "incorporated_to": "2026-01-01"},
+            ["incorporation_date"],
+            "value_error",
+        ),
+        ("lobbyists", {"lobbyist_type": "not-a-type"}, ["lobbyist_types", 0], "enum"),
+        ("lobbyists", {"contact_name": "   "}, ["contact_names", "terms", 0], "string_too_short"),
+        (
+            "lobbyists",
+            {"effective_from": "2026-01-02", "effective_to": "2026-01-01"},
+            ["effective_date"],
+            "value_error",
+        ),
+    ],
+)
+def test_invalid_nested_search_filters_return_422(
+    client: TestClient,
+    route: str,
+    params: dict[str, str],
+    location: list[str | int],
+    error_type: str,
+) -> None:
+    response = client.get(f"/search/{route}", params=params)
+
+    assert response.status_code == 422
+    (error,) = response.json()["detail"]
+    assert error["loc"] == ["query", *location]
+    assert error["type"] == error_type
+    assert isinstance(error["msg"], str)
+    assert "ctx" not in error
+    assert "Traceback" not in response.text
+
+
 class TestStartupRequiresDatabase:
     def test_raises_if_database_missing(self, tmp_path: Path) -> None:
         app = create_app(tmp_path / "missing.duckdb")
