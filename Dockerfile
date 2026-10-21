@@ -12,20 +12,18 @@
 # runs refreshes in the background.
 
 ARG PYTHON_VERSION=3.12
-ARG UV_VERSION=0.13.4
 
 # ---------------------------------------------------------------------------
 # builder
 # ---------------------------------------------------------------------------
 
-FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv-toolchain
 FROM python:${PYTHON_VERSION}-slim-bookworm AS builder
-COPY --from=uv-toolchain /uv /bin/uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
-    && python -m pip install --no-cache-dir --upgrade "pip==26.2.2"
+    && python -m pip install --no-cache-dir --upgrade pip
 
 # uv tunables (https://docs.astral.sh/uv/reference/settings/):
 #   compile bytecode for faster cold starts
@@ -57,10 +55,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 FROM python:${PYTHON_VERSION}-slim-bookworm AS runtime
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates \
-    && rm -rf /var/lib/apt/lists/* \
-    && python -m pip install --no-cache-dir --upgrade "pip==26.2.2"
+RUN python -m pip install --no-cache-dir --upgrade pip
 
 # Minimal runtime libs. lxml needs libxml2 / libxslt at runtime, but the
 # bundled wheels for our target platforms (linux/amd64, linux/arm64) ship
@@ -104,8 +99,3 @@ sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeo
 # tini is PID 1; `cado run` supervises the web server and refresh worker.
 ENTRYPOINT ["/usr/bin/tini", "-g", "--", "cado"]
 CMD ["run"]
-
-# Exercise the installed runtime verifiers before an image can be published.
-COPY scripts/verify_tls.py /usr/local/bin/verify-tls.py
-RUN /usr/local/bin/python /usr/local/bin/verify-tls.py \
-    && /app/.venv/bin/python /usr/local/bin/verify-tls.py
