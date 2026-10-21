@@ -18,7 +18,9 @@ ARG UV_VERSION=0.13.4
 # builder
 # ---------------------------------------------------------------------------
 
-FROM ghcr.io/astral-sh/uv:${UV_VERSION}-python${PYTHON_VERSION}-bookworm-slim AS builder
+FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv-toolchain
+FROM python:${PYTHON_VERSION}-slim-bookworm AS builder
+COPY --from=uv-toolchain /uv /bin/uv
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates \
