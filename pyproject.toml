@@ -10,7 +10,6 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "certifi>=2026.10.19",
     "httpx>=0.28",
     "beautifulsoup4>=4.14",
     "lxml>=6",
