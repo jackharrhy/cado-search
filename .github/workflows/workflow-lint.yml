@@ -27,5 +27,5 @@ jobs:
           install_args: shellcheck@0.11.0
       - name: Lint workflows and Dependabot configuration
         run: |
-          shellcheck --version
-          uvx --from jactionlint==2.3.0 jactionlint --format github --strict-exit
+          mise exec shellcheck@0.11.0 -- shellcheck --version
+          mise exec shellcheck@0.11.0 -- uvx --from jactionlint==2.3.0 jactionlint --format github --strict-exit
